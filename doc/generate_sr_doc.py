@@ -352,11 +352,11 @@ def generate_gray_code_diagram():
     ax.set_aspect('equal')
     ax.axis('off')
 
-    # State positions (circle): 00=top, 01=right, 11=bottom, 10=left
+    # State positions (circle): 11=top, 01=right, 00=bottom, 10=left
     states = {
-        '00': (0, 1.5),
+        '11': (0, 1.5),
         '01': (1.5, 0),
-        '11': (0, -1.5),
+        '00': (0, -1.5),
         '10': (-1.5, 0),
     }
 
