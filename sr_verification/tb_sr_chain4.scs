@@ -1,0 +1,270 @@
+// ============================================================================
+// Testbench: 4-unit SR chain — full functional + timing verification
+// DUT: hyp_adc_cdr_dac_sr_unit (4 instances chained)
+//
+// Test sequence:
+//   Phase 1: Reset all to code 0  (vin_rst_b=1 → vout=0000)
+//   Phase 2: CW sweep code 0 → 16 (16 gray code steps)
+//   Phase 3: Continue CW × 4 steps (verify saturation at 16)
+//   Phase 4: CCW sweep code 16 → 0 (16 gray code steps)
+//   Phase 5: Continue CCW × 4 steps (verify saturation at 0)
+//   Phase 6: Reset to mid-code 8, CW 4 steps, CCW 4 steps (reversal test)
+//
+// Timing parameters (adjust for your process):
+//   t_step  = 2ns   (gray code step period)
+//   t_rise  = 50ps  (edge rate)
+//   t_reset = 5ns   (reset pulse width)
+// ============================================================================
+
+simulator lang=spectre
+global 0
+
+// Include your design netlist (adjust path as needed)
+// include "netlist3.scs"
+
+parameters t_step=2n t_rise=50p t_reset=5n vdd=0.9
+
+// ============================================================================
+// SUPPLY
+// ============================================================================
+V_VDD  (vcca0p9 0) vsource dc=vdd
+V_VSS  (vssx 0)    vsource dc=0
+
+// ============================================================================
+// 4-UNIT CHAIN INSTANTIATION
+//
+// Chaining:  unit0 (rightmost, fills first) → unit3 (leftmost, fills last)
+//   unit0: in_pre=VDD,         in_post=unit1.vout0
+//   unit1: in_pre=unit0.vout3, in_post=unit2.vout0
+//   unit2: in_pre=unit1.vout3, in_post=unit3.vout0
+//   unit3: in_pre=unit2.vout3, in_post=VSS
+// ============================================================================
+
+I_unit0 (vcca0p9  u1_vout0 vin_rst_b_0 vsel1 vsel0 sel_rst vcca0p9 \
+         u0_vout0 u0_vout1 u0_vout2 u0_vout3 vssx) hyp_adc_cdr_dac_sr_unit_tb
+
+I_unit1 (u0_vout3 u2_vout0 vin_rst_b_1 vsel1 vsel0 sel_rst vcca0p9 \
+         u1_vout0 u1_vout1 u1_vout2 u1_vout3 vssx) hyp_adc_cdr_dac_sr_unit_tb
+
+I_unit2 (u1_vout3 u3_vout0 vin_rst_b_2 vsel1 vsel0 sel_rst vcca0p9 \
+         u2_vout0 u2_vout1 u2_vout2 u2_vout3 vssx) hyp_adc_cdr_dac_sr_unit_tb
+
+I_unit3 (u2_vout3 vssx     vin_rst_b_3 vsel1 vsel0 sel_rst vcca0p9 \
+         u3_vout0 u3_vout1 u3_vout2 u3_vout3 vssx) hyp_adc_cdr_dac_sr_unit_tb
+
+// ============================================================================
+// SR UNIT WRAPPER (maps flat ports to subckt)
+// This wraps the actual sr_unit subckt to match the TB interface.
+// Adjust port order to match your actual subckt definition.
+// ============================================================================
+subckt hyp_adc_cdr_dac_sr_unit_tb (in_pre in_post vin_rst_b vsel1 vsel0 \
+       sel_rst vcca0p9 vout0 vout1 vout2 vout3 vssx)
+
+    I_mux0 (in_pre  vout1 vin_rst_b vsel1 sel_rst vcca0p9 vout0 vssx) \
+            hyp_adc_cdr_dac_mux_wr2
+    I_mux1 (vout0   vout2 vin_rst_b vsel0 sel_rst vcca0p9 vout1 vssx) \
+            hyp_adc_cdr_dac_mux_wr2
+    I_mux2 (vout3   vout1 vin_rst_b vsel1 sel_rst vcca0p9 vout2 vssx) \
+            hyp_adc_cdr_dac_mux_wr2
+    I_mux3 (in_post vout2 vin_rst_b vsel0 sel_rst vcca0p9 vout3 vssx) \
+            hyp_adc_cdr_dac_mux_wr2
+
+ends hyp_adc_cdr_dac_sr_unit_tb
+
+// ============================================================================
+// STIMULUS: vsel<1:0> Gray Code Sequence
+//
+// The full test generates a vpwl waveform for vsel<1> and vsel<0>.
+// Gray code CW (UP):  11 → 01 → 00 → 10 → 11 → ...
+// Gray code CCW (DN): 11 → 10 → 00 → 01 → 11 → ...
+//
+// Timeline:
+//   0-10ns:    Reset phase (vsel=11, sel_rst pulsed)
+//   10-42ns:   CW sweep × 16 steps (code 0→16)
+//   42-50ns:   CW × 4 more (saturation check)
+//   50-60ns:   Reset phase 2 (reset to code 16, vin_rst_b=0)
+//   60-92ns:   CCW sweep × 16 steps (code 16→0)
+//   92-100ns:  CCW × 4 more (saturation check)
+//   100-110ns: Reset to mid-code 8 (units 0,1: vin_rst_b=0; units 2,3: vin_rst_b=1)
+//   110-118ns: CW × 4 steps (code 8→12)
+//   118-126ns: CCW × 4 steps (code 12→8, reversal test)
+// ============================================================================
+
+// --- vsel<1> ---
+V_vsel1 (vsel1 0) vsource type=pwl wave=[ \
+    0.0      vdd  \
+    9.5n     vdd  \
+    10n      vdd  \
+    12n      0    \
+    14n      0    \
+    16n      vdd  \
+    18n      0    \
+    20n      0    \
+    22n      vdd  \
+    24n      0    \
+    26n      0    \
+    28n      vdd  \
+    30n      0    \
+    32n      0    \
+    34n      vdd  \
+    36n      0    \
+    38n      0    \
+    40n      vdd  \
+    42n      0    \
+    44n      0    \
+    46n      vdd  \
+    48n      0    \
+    50n      vdd  \
+    59.5n    vdd  \
+    60n      vdd  \
+    62n      vdd  \
+    64n      0    \
+    66n      0    \
+    68n      vdd  \
+    70n      vdd  \
+    72n      0    \
+    74n      0    \
+    76n      vdd  \
+    78n      vdd  \
+    80n      0    \
+    82n      0    \
+    84n      vdd  \
+    86n      vdd  \
+    88n      0    \
+    90n      0    \
+    92n      vdd  \
+    94n      vdd  \
+    96n      0    \
+    98n      0    \
+    100n     vdd  \
+    109.5n   vdd  \
+    110n     vdd  \
+    112n     0    \
+    114n     0    \
+    116n     vdd  \
+    118n     vdd  \
+    120n     0    \
+    122n     0    \
+    124n     vdd  \
+    126n     vdd  ]
+
+// --- vsel<0> ---
+V_vsel0 (vsel0 0) vsource type=pwl wave=[ \
+    0.0      vdd  \
+    9.5n     vdd  \
+    10n      vdd  \
+    12n      vdd  \
+    14n      0    \
+    16n      0    \
+    18n      0    \
+    20n      vdd  \
+    22n      vdd  \
+    24n      vdd  \
+    26n      0    \
+    28n      0    \
+    30n      0    \
+    32n      vdd  \
+    34n      vdd  \
+    36n      vdd  \
+    38n      0    \
+    40n      0    \
+    42n      0    \
+    44n      vdd  \
+    46n      vdd  \
+    48n      vdd  \
+    50n      vdd  \
+    59.5n    vdd  \
+    60n      vdd  \
+    62n      0    \
+    64n      0    \
+    66n      vdd  \
+    68n      vdd  \
+    70n      0    \
+    72n      0    \
+    74n      vdd  \
+    76n      vdd  \
+    78n      0    \
+    80n      0    \
+    82n      vdd  \
+    84n      vdd  \
+    86n      0    \
+    88n      0    \
+    90n      vdd  \
+    92n      vdd  \
+    94n      0    \
+    96n      0    \
+    98n      vdd  \
+    100n     vdd  \
+    109.5n   vdd  \
+    110n     vdd  \
+    112n     vdd  \
+    114n     0    \
+    116n     0    \
+    118n     0    \
+    120n     0    \
+    122n     vdd  \
+    124n     vdd  \
+    126n     vdd  ]
+
+// --- sel_rst ---
+V_sel_rst (sel_rst 0) vsource type=pwl wave=[ \
+    0.0     0    \
+    1n      vdd  \
+    8n      0    \
+    50n     0    \
+    51n     vdd  \
+    58n     0    \
+    100n    0    \
+    101n    vdd  \
+    108n    0    \
+    126n    0    ]
+
+// --- vin_rst_b per unit ---
+// Phase 1 (0-10ns): all vin_rst_b=1 → reset to code 0 (vout=0000)
+// Phase 2 (50-60ns): all vin_rst_b=0 → reset to code 16 (vout=1111)
+// Phase 3 (100-110ns): units 0,1=0 (ON), units 2,3=1 (OFF) → code 8
+
+V_rst0 (vin_rst_b_0 0) vsource type=pwl wave=[ \
+    0.0     vdd  \
+    49n     vdd  \
+    50n     0    \
+    99n     0    \
+    100n    0    \
+    126n    0    ]
+
+V_rst1 (vin_rst_b_1 0) vsource type=pwl wave=[ \
+    0.0     vdd  \
+    49n     vdd  \
+    50n     0    \
+    99n     0    \
+    100n    0    \
+    126n    0    ]
+
+V_rst2 (vin_rst_b_2 0) vsource type=pwl wave=[ \
+    0.0     vdd  \
+    49n     vdd  \
+    50n     0    \
+    99n     0    \
+    100n    vdd  \
+    126n    vdd  ]
+
+V_rst3 (vin_rst_b_3 0) vsource type=pwl wave=[ \
+    0.0     vdd  \
+    49n     vdd  \
+    50n     0    \
+    99n     0    \
+    100n    vdd  \
+    126n    vdd  ]
+
+// ============================================================================
+// SIMULATION OPTIONS
+// ============================================================================
+tran_run tran stop=130n errpreset=conservative
+
+// Save all outputs for post-processing
+save u0_vout0 u0_vout1 u0_vout2 u0_vout3
+save u1_vout0 u1_vout1 u1_vout2 u1_vout3
+save u2_vout0 u2_vout1 u2_vout2 u2_vout3
+save u3_vout0 u3_vout1 u3_vout2 u3_vout3
+save vsel1 vsel0 sel_rst
+save vin_rst_b_0 vin_rst_b_1 vin_rst_b_2 vin_rst_b_3
