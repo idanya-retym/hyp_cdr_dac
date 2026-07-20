@@ -107,7 +107,7 @@ def generate_spec():
 
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = p.add_run("7-Bit Fully Thermometric Differential Current-Steering DAC")
+    run = p.add_run("9-Bit Fully Thermometric Differential Current-Steering DAC")
     run.font.size = Pt(14)
     run.font.color.rgb = RGBColor(80, 80, 80)
 
@@ -138,7 +138,8 @@ def generate_spec():
 
     rev_headers = ["Rev", "Date", "Author", "Description"]
     rev_rows = [
-        ("0.1", date.today().strftime("%Y-%m-%d"), "[Author]", "Initial draft – skeleton/template"),
+        ("0.1", "2025-07-01", "[Author]", "Initial draft – skeleton/template"),
+        ("0.2", date.today().strftime("%Y-%m-%d"), "[Author]", "Updated to 9-bit (511 codes); added INL/DNL formulas (sec 4.2)"),
     ]
     add_table_with_headers(doc, rev_headers, rev_rows)
 
@@ -226,8 +227,8 @@ def generate_spec():
 
     doc.add_heading("3.1 DAC Topology", level=2)
     doc.add_paragraph(
-        "Topology: 7-bit fully thermometric, differential current-steering DAC.\n"
-        "Number of unit elements: N = 2^7 - 1 = 127 unit current sources."
+        "Topology: 9-bit fully thermometric, differential current-steering DAC.\n"
+        "Number of unit elements: N = 2^9 - 1 = 511 unit current sources."
     )
 
     doc.add_heading("3.2 Unit Current Source Design", level=2)
@@ -253,10 +254,10 @@ def generate_spec():
 
     spec_headers = ["Parameter", "Symbol", "Min", "Typ", "Max", "Unit", "Notes"]
     spec_rows = [
-        ("Resolution", "N", "—", "7", "—", "bits", "Thermometric"),
-        ("Number of codes", "—", "—", "127", "—", "—", "2^N - 1"),
-        ("Full-scale current", "I_FS", "", "", "", "µA", ""),
-        ("LSB current", "I_LSB", "", "", "", "µA", "I_FS / 127"),
+        ("Resolution", "N", "—", "9", "—", "bits", "Thermometric"),
+        ("Number of codes", "—", "—", "511", "—", "—", "2^N - 1"),
+        ("Full-scale current", "I_FS", "", "10.02", "", "mA", "511 × 19.6 µA"),
+        ("LSB current", "I_LSB", "", "19.6", "", "µA", "I_FS / 511"),
         ("DNL", "DNL", "", "", "±0.5", "LSB", "Target yield TBD"),
         ("INL", "INL", "", "", "", "LSB", ""),
         ("Current source mismatch", "σ(Iu)/Iu", "", "", "", "%", "See matching analysis"),
@@ -271,10 +272,73 @@ def generate_spec():
     ]
     add_table_with_headers(doc, spec_headers, spec_rows)
 
-    doc.add_heading("4.2 Matching Requirements", level=2)
+    # ----- 4.2 INL and DNL Definitions -----
+    doc.add_heading("4.2 INL and DNL Definitions", level=2)
+
+    doc.add_paragraph(
+        "For a fully thermometric differential current-steering DAC with N = 2^B - 1 "
+        "unit current sources (B = 9, N = 511):"
+    )
+
+    doc.add_heading("4.2.1 DNL (Differential Non-Linearity)", level=3)
+    doc.add_paragraph(
+        "DNL measures the deviation of each code step from the ideal 1-LSB step size.\n\n"
+        "Definition (endpoint-fitted):\n\n"
+        "    DNL(k) = [V_out(k+1) - V_out(k)] / LSB_actual  -  1\n\n"
+        "where:\n"
+        "    LSB_actual = [V_out(N) - V_out(0)] / N\n\n"
+        "For a fully thermometric DAC, each code transition activates exactly one unit "
+        "current source. Therefore:\n\n"
+        "    DNL(k) = [I_unit(k) - I_avg] / I_avg\n\n"
+        "where I_unit(k) is the current of the k-th unit source and I_avg is the mean "
+        "of all N unit sources.\n\n"
+        "Specification: |DNL| < 0.5 LSB (guarantees monotonicity)"
+    )
+
+    doc.add_heading("4.2.2 INL (Integral Non-Linearity)", level=3)
+    doc.add_paragraph(
+        "INL measures the cumulative deviation of the transfer function from the ideal "
+        "straight line.\n\n"
+        "Definition (endpoint-fitted):\n\n"
+        "    INL(k) = [V_out(k) - V_out(0)] / LSB_actual  -  k\n\n"
+        "Equivalently, INL is the cumulative sum of DNL:\n\n"
+        "    INL(k) = Σ_{i=0}^{k-1} DNL(i)\n\n"
+        "For a differential DAC with output V_diff = I_diff × R_L:\n\n"
+        "    INL(k) = [V_diff(k) - V_diff(0)] / LSB_actual  -  k\n"
+        "    LSB_actual = [V_diff(N) - V_diff(0)] / N"
+    )
+
+    doc.add_heading("4.2.3 Differential DAC: Finite Rout Effect", level=3)
+    doc.add_paragraph(
+        "For a differential current-steering DAC, the first-order finite-Rout effect "
+        "cancels between the two output branches, producing only a gain error (no INL):\n\n"
+        "    Gain Error = (N × R_L) / (2 × R_out)\n\n"
+        "Second-order INL from Rout variation across code:\n\n"
+        "    INL_diff_max ≈ (N² / 42) × Δg_ds × R_L   [LSBs]\n\n"
+        "where Δg_ds is the variation of output conductance across the output voltage "
+        "swing."
+    )
+
+    doc.add_heading("4.2.4 Mismatch-Limited DNL (Statistical)", level=3)
+    doc.add_paragraph(
+        "Given relative mismatch σ_rel = σ(I_unit)/I_unit, the probability that ALL "
+        "N codes meet |DNL| < DNL_target:\n\n"
+        "    Yield = [2·Φ(DNL_target / σ_rel) - 1]^N\n\n"
+        "where Φ is the standard normal CDF.\n\n"
+        "Solving for required σ_rel at a given yield target Y:\n\n"
+        "    σ_rel = DNL_target / Φ⁻¹[(1 + Y^(1/N)) / 2]\n\n"
+        "For N = 511, |DNL| < 0.5 LSB:\n"
+        "  • 90% yield → σ_rel ≤ TBD %\n"
+        "  • 95% yield → σ_rel ≤ TBD %\n"
+        "  • 99% yield → σ_rel ≤ TBD %\n"
+        "  • 3σ (99.7%) yield → σ_rel ≤ TBD %"
+    )
+
+    # ----- 4.3 Matching Requirements -----
+    doc.add_heading("4.3 Matching Requirements", level=2)
     doc.add_paragraph(
         "Based on Monte Carlo analysis (see dac_sigma_vs_dnl.py):\n\n"
-        "For |DNL| < 0.5 LSB with 127 unit elements:\n"
+        "For |DNL| < 0.5 LSB with 511 unit elements:\n"
         "  • 90% yield → σ_rel ≤ TBD %\n"
         "  • 95% yield → σ_rel ≤ TBD %\n"
         "  • 99% yield → σ_rel ≤ TBD %\n"
@@ -297,7 +361,8 @@ def generate_spec():
     doc.add_heading("5.1 Interface Type", level=2)
     doc.add_paragraph(
         "[Define interface: async pulse (UP/DN), synchronous parallel, or hybrid.\n"
-        "Reference system_questions.md Q1–Q9 for open decisions.]"
+        "Reference system_questions.md Q1–Q9 for open decisions.]\n\n"
+        "CODE[8:0]: 9-bit thermometer state (511 codes)"
     )
 
     doc.add_heading("5.2 Signal List", level=2)
@@ -306,7 +371,7 @@ def generate_spec():
         ("UP", "Input", "1", "Increment DAC code by 1 LSB"),
         ("DN", "Input", "1", "Decrement DAC code by 1 LSB"),
         ("RESET_N", "Input", "1", "Active-low async reset to initial code"),
-        ("CODE[6:0]", "Output/Internal", "7", "Current DAC thermometer code (optional readback)"),
+        ("CODE[8:0]", "Output/Internal", "9", "Current DAC thermometer code (optional readback)"),
         ("SAT_HI", "Output", "1", "Saturation flag – code at maximum"),
         ("SAT_LO", "Output", "1", "Saturation flag – code at minimum"),
     ]
@@ -392,9 +457,9 @@ def generate_spec():
     test_rows = [
         ("DNL", "Code-by-code ramp", "< 0.5 LSB", ""),
         ("INL", "Cumulative DNL", "TBD", ""),
-        ("Full-scale current", "Force code 127, measure I_out", "TBD", ""),
+        ("Full-scale current", "Force code 511, measure I_out", "TBD", ""),
         ("Power consumption", "Measure supply current", "TBD", ""),
-        ("Monotonicity", "Verify no code reversal", "Pass/Fail", ""),
+        ("Monotonicity", "Verify no code reversal (DNL > -1)", "Pass/Fail", ""),
     ]
     add_table_with_headers(doc, test_headers, test_rows)
 
