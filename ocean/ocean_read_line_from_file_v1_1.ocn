@@ -1,0 +1,28 @@
+; ocean_read_line_from_file_v1_1.ocn
+; Reads a specific line number from a file and prints it.
+
+; ---- Hardcoded variables ----
+expected_file = "/path/to/your/file.txt"
+n_line = 1
+
+; ---- Read and print line ----
+current_line = 0
+found = nil
+
+fp = infile(expected_file)
+if(fp then
+  while(gets(line fp)
+    current_line = current_line + 1
+    when(current_line == n_line
+      printf("Line %d: %s" n_line line)
+      found = t
+    )
+  )
+  close(fp)
+  unless(found
+    printf("ERROR: File '%s' has only %d lines, requested line %d.\n"
+           expected_file current_line n_line)
+  )
+else
+  printf("ERROR: Cannot open file '%s'.\n" expected_file)
+)
