@@ -1,0 +1,69 @@
+SR Verification Input Files
+===========================
+
+Testbench: 128-unit chain (512 thermometer bits total)
+Reset code: 256 (units 0-63 ON, units 64-127 OFF)
+Reset signal: vin_rst_b[0:63] = 0, vin_rst_b[64:127] = 1
+Reset vsel: 3 (decimal) = 11 (binary)
+
+Monitored Units
+---------------
+4 units at the ON/OFF boundary after reset:
+
+  Unit 62: ON  (code 4, vout = 1111) — 2nd-to-last fully ON unit
+  Unit 63: ON  (code 4, vout = 1111) — last fully ON unit (boundary)
+  Unit 64: OFF (code 0, vout = 0000) — first fully OFF unit (boundary)
+  Unit 65: OFF (code 0, vout = 0000) — 2nd fully OFF unit
+
+  Why these 4: All shifting action happens at the ON/OFF boundary.
+  Units 62-63 have output=1 and units 64-65 have output=0 after reset.
+  As the code increases (CW), ones fill from unit 63 into unit 64, then 65.
+  As the code decreases (CCW), ones retract from unit 64 back into unit 63, then 62.
+  These 4 units capture all boundary transitions and direction reversals.
+
+Files
+-----
+vsel_stimulus.txt
+  - 78 lines, one value per line
+  - Each value is the decimal encoding of vsel<1:0>:
+      0 = vsel<1:0> = 00
+      1 = vsel<1:0> = 01
+      2 = vsel<1:0> = 10
+      3 = vsel<1:0> = 11
+  - Line 1 is the initial state after reset (vsel=3)
+  - Lines 2-78 are successive gray code steps (CW or CCW)
+  - Gray code CW (UP):  3 → 1 → 0 → 2 → 3 → ...
+  - Gray code CCW (DN): 3 → 2 → 0 → 1 → 3 → ...
+
+expected_outputs.txt
+  - 78 lines, 16 space-separated values per line
+  - Each value is 0 or 1 (digital output after settling)
+  - Column order: [u62_vout0 u62_vout1 u62_vout2 u62_vout3
+                    u63_vout0 u63_vout1 u63_vout2 u63_vout3
+                    u64_vout0 u64_vout1 u64_vout2 u64_vout3
+                    u65_vout0 u65_vout1 u65_vout2 u65_vout3]
+  - Thermometer fill order within each unit: vout0 (right/in_pre side) fills first
+  - Line N corresponds to the expected output after applying vsel from line N
+
+Test Sequence Summary
+---------------------
+Line 1:      Initial state after reset (code 256)
+Lines 2-9:   CW x8 (code 256 → 264) — fills into unit 64
+Lines 10-13: CCW x4 (264 → 260) — immediate direction reversal
+Lines 14-25: CCW x12 (260 → 248) — crosses back into unit 62
+Lines 26-27: CW x2 (248 → 250) — reversal after long CCW sweep
+Lines 28-37: CW x10 (250 → 260) — sweep back through boundary
+Lines 38-45: CCW/CW alternating x4 (jitter test at boundary)
+Lines 46-53: CW x8 (260 → 268) — push into unit 65
+Lines 54-73: CCW x20 (268 → 248) — long sweep back
+Line 74:     CW x1 (248 → 249) — reversal after long sweep
+Line 75:     CCW x1 (249 → 248) — immediate re-reversal
+Lines 76-78: CW x3 (248 → 251) — final steps
+
+Usage
+-----
+In OCEAN/Spectre: read vsel_stimulus.txt line-by-line, apply each value
+to vsel<1:0>, wait for settling, then compare vout of monitored units
+against the corresponding line in expected_outputs.txt.
+
+Threshold for digital comparison: VDD/2 = 0.45V
