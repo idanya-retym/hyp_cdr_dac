@@ -36,11 +36,14 @@ vsel_stimulus.txt
   - Gray code CCW (DN): 3 → 2 → 0 → 1 → 3 → ...
 
 expected_outputs.txt / expected_stress.txt
-  - One integer per line = total DAC code (sum of all 512 thermometer bits)
-  - Range: 0 to 512 (128 units x 4 bits)
-  - After reset to mid-code: initial value = 256
-  - Line N corresponds to the expected DAC code after applying vsel from line N
-  - In the actual DAC: output current = code x I_unit (19.6uA)
+  - One integer per line = decimal value of the 16 monitored output bits
+  - The 16 bits [u62_vout0 ... u65_vout3] are treated as a binary word:
+      MSB = u62_vout0, LSB = u65_vout3
+  - Range: 0 to 65535 (2^16 - 1)
+  - After reset: u62=1111, u63=1111, u64=0000, u65=0000 → 65280 (0xFF00)
+  - Each CW step adds one bit from the right: 65280 → 65408 → 65472 → ...
+  - Each CCW step removes one bit from the right: 65280 → 61440 → ...
+  - Line N corresponds to the expected decimal value after applying vsel line N
 
 Test Sequence Summary (vsel_stimulus.txt / expected_outputs.txt)
 ----------------------------------------------------------------

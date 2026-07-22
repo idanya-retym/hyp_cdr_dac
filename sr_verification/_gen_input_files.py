@@ -53,9 +53,22 @@ def run_sequence(step_list):
     states = evaluate_chain(states, 1, 1, 0, vin_rst_b)
     vsel1, vsel0 = 1, 1
 
+    MONITOR = [62, 63, 64, 65]
+
     results = []
-    code = sum(sum(u) for u in states)
-    results.append((vsel_to_decimal(vsel1, vsel0), code))
+
+    def get_dac_value(states):
+        # 16 bits from monitored units: u62_vout0(MSB) ... u65_vout3(LSB)
+        bits = []
+        for u in MONITOR:
+            bits.extend(states[u])
+        # Convert 16-bit binary to decimal (MSB first)
+        val = 0
+        for b in bits:
+            val = (val << 1) | b
+        return val
+
+    results.append((vsel_to_decimal(vsel1, vsel0), get_dac_value(states)))
 
     for direction in step_list:
         curr = (vsel1, vsel0)
@@ -66,8 +79,7 @@ def run_sequence(step_list):
             idx = CCW.index(curr)
             vsel1, vsel0 = CCW[(idx + 1) % 4]
         states = evaluate_chain(states, vsel1, vsel0, 0, vin_rst_b)
-        code = sum(sum(u) for u in states)
-        results.append((vsel_to_decimal(vsel1, vsel0), code))
+        results.append((vsel_to_decimal(vsel1, vsel0), get_dac_value(states)))
 
     return results
 
