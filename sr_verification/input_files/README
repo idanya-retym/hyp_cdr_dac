@@ -8,18 +8,28 @@ Reset vsel: 3 (decimal) = 11 (binary)
 
 Monitored Units
 ---------------
-4 units at the ON/OFF boundary after reset:
+7 units monitored (28 bits per line):
 
+  Unit 31: ON  (code 4, vout = 1111) — deep in ON region (must stay constant)
+  Unit 32: ON  (code 4, vout = 1111) — deep in ON region (must stay constant)
+  Unit 33: ON  (code 4, vout = 1111) — deep in ON region (must stay constant)
   Unit 62: ON  (code 4, vout = 1111) — 2nd-to-last fully ON unit
   Unit 63: ON  (code 4, vout = 1111) — last fully ON unit (boundary)
   Unit 64: OFF (code 0, vout = 0000) — first fully OFF unit (boundary)
   Unit 65: OFF (code 0, vout = 0000) — 2nd fully OFF unit
 
-  Why these 4: All shifting action happens at the ON/OFF boundary.
-  Units 62-63 have output=1 and units 64-65 have output=0 after reset.
-  As the code increases (CW), ones fill from unit 63 into unit 64, then 65.
-  As the code decreases (CCW), ones retract from unit 64 back into unit 63, then 62.
-  These 4 units capture all boundary transitions and direction reversals.
+  Column mapping (28 bits per line):
+    Bits  0-3:  vout0<31> vout1<31> vout2<31> vout3<31>
+    Bits  4-7:  vout0<32> vout1<32> vout2<32> vout3<32>
+    Bits  8-11: vout0<33> vout1<33> vout2<33> vout3<33>
+    Bits 12-15: vout0<62> vout1<62> vout2<62> vout3<62>
+    Bits 16-19: vout0<63> vout1<63> vout2<63> vout3<63>
+    Bits 20-23: vout0<64> vout1<64> vout2<64> vout3<64>
+    Bits 24-27: vout0<65> vout1<65> vout2<65> vout3<65>
+
+  Units 31-33: connectivity check — must NEVER change (always 1111).
+  If any bit in columns 0-11 changes, there is a wiring or coupling error.
+  Units 62-65: boundary units where shifting action occurs.
 
 Files
 -----

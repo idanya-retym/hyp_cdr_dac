@@ -53,12 +53,14 @@ def run_sequence(step_list):
     states = evaluate_chain(states, 1, 1, 0, vin_rst_b)
     vsel1, vsel0 = 1, 1
 
-    MONITOR = [62, 63, 64, 65]
+    MONITOR = [31, 32, 33, 62, 63, 64, 65]
 
     results = []
 
     def get_bits(states):
-        # 16 bits from monitored units: u62_vout0 ... u65_vout3
+        # 28 bits from monitored units:
+        # u31_vout0..3, u32_vout0..3, u33_vout0..3,
+        # u62_vout0..3, u63_vout0..3, u64_vout0..3, u65_vout0..3
         bits = []
         for u in MONITOR:
             bits.extend(states[u])
@@ -111,12 +113,9 @@ stress_steps += ['cw', 'ccw', 'cw', 'cw', 'ccw', 'cw', 'cw', 'ccw', 'cw', 'cw', 
 # Test 6: Double reversal patterns
 stress_steps += ['cw', 'ccw', 'ccw', 'cw', 'cw', 'ccw', 'ccw', 'ccw', 'cw']
 # Test 7: Navigate to 252 then oscillate
-partial = run_sequence(stress_steps)
-# curr_code = total thermometer code = 256 + net steps from partial
-# Count from bits: monitored units show local state, but we need global code.
-# Global code = 256 + (sum of monitored bits - 8), since reset gives 8 ones in monitored.
-curr_monitored = sum(partial[-1][1])
-curr_code = 256 + (curr_monitored - 8)
+# Global code = 256 + net steps taken
+net_steps = sum(1 if s == 'cw' else -1 for s in stress_steps)
+curr_code = 256 + net_steps
 steps_to_252 = curr_code - 252
 stress_steps += ['ccw'] * steps_to_252
 for _ in range(8):
