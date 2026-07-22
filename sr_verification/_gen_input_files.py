@@ -44,8 +44,8 @@ CCW = [(1,1),(1,0),(0,0),(0,1)]
 def vsel_to_decimal(v1, v0):
     return v1 * 2 + v0
 
-N_UNITS = 128
-vin_rst_b = [0]*64 + [1]*64
+N_UNITS = 64
+vin_rst_b = [0]*32 + [1]*32
 
 def run_sequence(step_list):
     states = [(0,0,0,0)] * N_UNITS
@@ -53,20 +53,22 @@ def run_sequence(step_list):
     states = evaluate_chain(states, 1, 1, 0, vin_rst_b)
     vsel1, vsel0 = 1, 1
 
-    MONITOR = [31, 32, 33, 62, 63, 64, 65]
+    MONITOR = [30, 31, 32, 33]
 
     results = []
 
-    def get_bits(states):
-        # 28 bits from monitored units:
-        # u31_vout0..3, u32_vout0..3, u33_vout0..3,
-        # u62_vout0..3, u63_vout0..3, u64_vout0..3, u65_vout0..3
-        bits = []
+    def get_decimal(states):
+        # 16 bits: vout0..3 of units 30,31,32,33 → single decimal
+        # unit30 = bits 0-3 (LSB), unit33 = bits 12-15 (MSB)
+        val = 0
+        bit_pos = 0
         for u in MONITOR:
-            bits.extend(states[u])
-        return bits
+            for b in states[u]:
+                val += b * (1 << bit_pos)
+                bit_pos += 1
+        return val
 
-    results.append((vsel_to_decimal(vsel1, vsel0), get_bits(states)))
+    results.append((vsel_to_decimal(vsel1, vsel0), get_decimal(states)))
 
     for direction in step_list:
         curr = (vsel1, vsel0)
@@ -77,7 +79,7 @@ def run_sequence(step_list):
             idx = CCW.index(curr)
             vsel1, vsel0 = CCW[(idx + 1) % 4]
         states = evaluate_chain(states, vsel1, vsel0, 0, vin_rst_b)
-        results.append((vsel_to_decimal(vsel1, vsel0), get_bits(states)))
+        results.append((vsel_to_decimal(vsel1, vsel0), get_decimal(states)))
 
     return results
 
@@ -95,11 +97,11 @@ main_steps += ['ccw'] * 20
 main_steps += ['cw', 'ccw'] + ['cw'] * 3
 
 main_results = run_sequence(main_steps)
-print(f'Main: {len(main_results)} lines, code range {min(sum(r[1]) for r in main_results)}-{max(sum(r[1]) for r in main_results)}')
+print(f'Main: {len(main_results)} lines')
 
 # === Stress sequence ===
 stress_steps = []
-# Test 1: Boundary oscillation at 256/257
+# Test 1: Boundary oscillation at 128/129
 for _ in range(10):
     stress_steps += ['cw', 'ccw']
 # Test 2: Reversal at every vsel state
@@ -112,17 +114,17 @@ stress_steps += ['cw'] * 4 + ['ccw'] * 4
 stress_steps += ['cw', 'ccw', 'cw', 'cw', 'ccw', 'cw', 'cw', 'ccw', 'cw', 'cw', 'ccw', 'cw']
 # Test 6: Double reversal patterns
 stress_steps += ['cw', 'ccw', 'ccw', 'cw', 'cw', 'ccw', 'ccw', 'ccw', 'cw']
-# Test 7: Navigate to 252 then oscillate
-# Global code = 256 + net steps taken
+# Test 7: Navigate to 124 then oscillate
+# Global code = 128 + net steps taken
 net_steps = sum(1 if s == 'cw' else -1 for s in stress_steps)
-curr_code = 256 + net_steps
-steps_to_252 = curr_code - 252
-stress_steps += ['ccw'] * steps_to_252
+curr_code = 128 + net_steps
+steps_to_124 = curr_code - 124
+stress_steps += ['ccw'] * steps_to_124
 for _ in range(8):
     stress_steps += ['ccw', 'cw']
 
 stress_results = run_sequence(stress_steps)
-print(f'Stress: {len(stress_results)} lines, code range {min(sum(r[1]) for r in stress_results)}-{max(sum(r[1]) for r in stress_results)}')
+print(f'Stress: {len(stress_results)} lines')
 
 # === Write files ===
 with open('input_files/vsel_stimulus.txt', 'w') as f:
@@ -130,17 +132,17 @@ with open('input_files/vsel_stimulus.txt', 'w') as f:
         f.write(f'{vsel_dec}\n')
 
 with open('input_files/expected_outputs.txt', 'w') as f:
-    for _, bits in main_results:
-        f.write(' '.join(str(b) for b in bits) + '\n')
+    for _, val in main_results:
+        f.write(f'{val}\n')
 
 with open('input_files/vsel_stress.txt', 'w') as f:
     for vsel_dec, _ in stress_results:
         f.write(f'{vsel_dec}\n')
 
 with open('input_files/expected_stress.txt', 'w') as f:
-    for _, bits in stress_results:
-        f.write(' '.join(str(b) for b in bits) + '\n')
+    for _, val in stress_results:
+        f.write(f'{val}\n')
 
-print('Done. Expected files now contain one integer per line (total DAC code 0-512).')
+print('Done. Expected files: one decimal per line (16-bit word from units 30-33, range 0-65535).')
 print(f'  expected_outputs.txt: {len(main_results)} lines')
 print(f'  expected_stress.txt: {len(stress_results)} lines')
