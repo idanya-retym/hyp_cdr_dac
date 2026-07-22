@@ -67,3 +67,41 @@ to vsel<1:0>, wait for settling, then compare vout of monitored units
 against the corresponding line in expected_outputs.txt.
 
 Threshold for digital comparison: VDD/2 = 0.45V
+
+
+Stress Test Files
+=================
+
+vsel_stress.txt / expected_stress.txt
+  - 121 lines each, same format as above
+  - Targets edge cases NOT covered by the main stimulus:
+
+  Test 1 (lines 2-21): Boundary oscillation at code 256/257
+    Rapid CW/CCW toggling at the exact inter-unit boundary (unit 63→64).
+    Exercises: pair capture/release at the most fragile point, inter-unit
+    wire switching every cycle.
+
+  Test 2 (lines 22-31): Reversal from every vsel state
+    Steps CW to reach vsel=1, reverses; then to vsel=0, reverses; etc.
+    Exercises: direction change from each of the 4 gray code states.
+    Catches bugs where reversal from a specific vsel value fails.
+
+  Test 3 (lines 32-65): Multi-unit cross + snap back
+    CW 17 steps (crosses 4+ unit boundaries) then CCW 17 steps back.
+    Exercises: long propagation chain settling, cumulative boundary effects.
+
+  Test 4 (lines 66-73): Full intra-unit pair sweep
+    Unit 64: code 0→1→2→3→4→3→2→1→0 (all 4 pair formations + releases).
+    Exercises: every pair position within a single unit.
+
+  Test 5 (lines 74-85): Reversal at each intra-unit code
+    Steps to code 1, reverses; to code 2, reverses; to code 3, reverses;
+    to code 4, reverses. Exercises: pair stability at each intermediate code.
+
+  Test 6 (lines 86-94): Double/triple reversal patterns
+    CW, CCW, CCW, CW, CW, CCW, CCW, CCW, CW.
+    Exercises: multiple consecutive reversals, "zig-zag" behavior.
+
+  Test 7 (lines 95-121): Boundary oscillation at unit 62/63 (code 252)
+    Same as Test 1 but at the OTHER monitored boundary (going DOWN).
+    Exercises: boundary oscillation in CCW direction.
