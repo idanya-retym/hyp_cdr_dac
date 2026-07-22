@@ -57,18 +57,14 @@ def run_sequence(step_list):
 
     results = []
 
-    def get_dac_value(states):
-        # 16 bits from monitored units: u62_vout0(MSB) ... u65_vout3(LSB)
+    def get_bits(states):
+        # 16 bits from monitored units: u62_vout0 ... u65_vout3
         bits = []
         for u in MONITOR:
             bits.extend(states[u])
-        # Convert 16-bit binary to decimal (MSB first)
-        val = 0
-        for b in bits:
-            val = (val << 1) | b
-        return val
+        return bits
 
-    results.append((vsel_to_decimal(vsel1, vsel0), get_dac_value(states)))
+    results.append((vsel_to_decimal(vsel1, vsel0), get_bits(states)))
 
     for direction in step_list:
         curr = (vsel1, vsel0)
@@ -79,7 +75,7 @@ def run_sequence(step_list):
             idx = CCW.index(curr)
             vsel1, vsel0 = CCW[(idx + 1) % 4]
         states = evaluate_chain(states, vsel1, vsel0, 0, vin_rst_b)
-        results.append((vsel_to_decimal(vsel1, vsel0), get_dac_value(states)))
+        results.append((vsel_to_decimal(vsel1, vsel0), get_bits(states)))
 
     return results
 
@@ -97,7 +93,7 @@ main_steps += ['ccw'] * 20
 main_steps += ['cw', 'ccw'] + ['cw'] * 3
 
 main_results = run_sequence(main_steps)
-print(f'Main: {len(main_results)} lines, code range {min(r[1] for r in main_results)}-{max(r[1] for r in main_results)}')
+print(f'Main: {len(main_results)} lines, code range {min(sum(r[1]) for r in main_results)}-{max(sum(r[1]) for r in main_results)}')
 
 # === Stress sequence ===
 stress_steps = []
@@ -116,14 +112,18 @@ stress_steps += ['cw', 'ccw', 'cw', 'cw', 'ccw', 'cw', 'cw', 'ccw', 'cw', 'cw', 
 stress_steps += ['cw', 'ccw', 'ccw', 'cw', 'cw', 'ccw', 'ccw', 'ccw', 'cw']
 # Test 7: Navigate to 252 then oscillate
 partial = run_sequence(stress_steps)
-curr_code = partial[-1][1]
+# curr_code = total thermometer code = 256 + net steps from partial
+# Count from bits: monitored units show local state, but we need global code.
+# Global code = 256 + (sum of monitored bits - 8), since reset gives 8 ones in monitored.
+curr_monitored = sum(partial[-1][1])
+curr_code = 256 + (curr_monitored - 8)
 steps_to_252 = curr_code - 252
 stress_steps += ['ccw'] * steps_to_252
 for _ in range(8):
     stress_steps += ['ccw', 'cw']
 
 stress_results = run_sequence(stress_steps)
-print(f'Stress: {len(stress_results)} lines, code range {min(r[1] for r in stress_results)}-{max(r[1] for r in stress_results)}')
+print(f'Stress: {len(stress_results)} lines, code range {min(sum(r[1]) for r in stress_results)}-{max(sum(r[1]) for r in stress_results)}')
 
 # === Write files ===
 with open('input_files/vsel_stimulus.txt', 'w') as f:
@@ -131,16 +131,16 @@ with open('input_files/vsel_stimulus.txt', 'w') as f:
         f.write(f'{vsel_dec}\n')
 
 with open('input_files/expected_outputs.txt', 'w') as f:
-    for _, code in main_results:
-        f.write(f'{code}\n')
+    for _, bits in main_results:
+        f.write(' '.join(str(b) for b in bits) + '\n')
 
 with open('input_files/vsel_stress.txt', 'w') as f:
     for vsel_dec, _ in stress_results:
         f.write(f'{vsel_dec}\n')
 
 with open('input_files/expected_stress.txt', 'w') as f:
-    for _, code in stress_results:
-        f.write(f'{code}\n')
+    for _, bits in stress_results:
+        f.write(' '.join(str(b) for b in bits) + '\n')
 
 print('Done. Expected files now contain one integer per line (total DAC code 0-512).')
 print(f'  expected_outputs.txt: {len(main_results)} lines')
