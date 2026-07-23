@@ -1,0 +1,157 @@
+axlAddOutputs(list("n_issue" "v_delta_issue" "delta_wave" "vout_wave" "expected_wave" "thermo_wave" "n_lines_file" "n_lines_sim"))
+
+defMathConstants('m)
+
+; =====================
+; Signals to save (VT/IT)
+; =====================
+
+vclk = VT("/vclk")
+vgnd = VT("/gnd!")
+vout_dft = list()
+for(b 0 15
+    vout_dft = append1(vout_dft VT(sprintf(nil "/vout_dft<%d>" b)))
+)
+vout_all = list()
+for(b 0 63
+    vout_all = append1(vout_all VT(sprintf(nil "/vout0<%d>" b)))
+    vout_all = append1(vout_all VT(sprintf(nil "/vout1<%d>" b)))
+    vout_all = append1(vout_all VT(sprintf(nil "/vout2<%d>" b)))
+    vout_all = append1(vout_all VT(sprintf(nil "/vout3<%d>" b)))
+)
+
+; =====================
+; Parameters & Variables
+; =====================
+
+rst_val = VAR("rst_val")
+rft = VAR("trf")
+vcc = VAR("vcca0p9")
+fclk = VAR("fclk")
+
+delta_time = 100p                ; sample offset after clock edge
+
+; =====================
+; Select expected file and checker mode
+; =====================
+; use_thermo = nil → compare vout_dec (16-bit DFT window)
+; use_thermo = t   → compare thermo_count (total ones, 0-256)
+
+case(int(rst_val)
+  (0  file_name = "unit_up_down_expected.txt"   use_thermo = nil)
+  (1  file_name = "unit_down_up_expected.txt"   use_thermo = nil)
+  (2  file_name = "expected_stimulus.txt"       use_thermo = nil)
+  (3  file_name = "expected_stress.txt"         use_thermo = nil)
+  (4  file_name = "expected_up_full.txt"        use_thermo = t)
+  (5  file_name = "expected_down_full.txt"      use_thermo = t)
+)
+
+path = "/workarea/idanya/default/hyp/cadence/virtuoso/libs/hyp_adc_cdr_tb/input_files/"
+expected_file = strcat(path file_name)
+
+; =====================
+; Count lines in expected file
+; =====================
+
+fp = infile(expected_file)
+n_lines_file = 0
+while(gets(line fp) n_lines_file = n_lines_file + 1)
+close(fp)
+
+; =====================
+; Determine simulation length and usable sample count
+; =====================
+
+sim_time = ymax(xval(vgnd))
+
+cross_times = cross(vclk vcc/2 1 "rising" t "cycle" nil)
+first_cross = value(cross_times 1)
+
+; Number of clock-edge samples that fit within sim_time
+n_lines_sim = int((sim_time - first_cross - delta_time) * fclk)
+
+; Use the smaller of file lines and sim samples
+n_points = min(n_lines_file n_lines_sim)
+
+; =====================
+; Compare simulation output vs expected values
+; =====================
+
+n_issue = -1
+v_delta_issue = -1000
+found_issue = nil              ; flag: only record first mismatch
+
+delta_vec = drCreateVec('double n_points)
+vout_vec = drCreateVec('double n_points)
+expected_vec = drCreateVec('double n_points)
+thermo_vec = drCreateVec('double n_points)
+step_vec = drCreateVec('double n_points)
+
+fp = infile(expected_file)
+
+for(i 1 n_points
+
+    ; Read expected decimal value from file
+    gets(line fp)
+    n = atoi(line)
+
+    ; Sample time: i-th rising clock edge + offset
+    sample_time = first_cross + 1/fclk*i + delta_time
+
+    ; Build decimal from 16-bit DFT bus
+    vout_dec = 0
+    for(b 0 15
+        bit_val = value(nth(b vout_dft) sample_time)
+        when(bit_val > vcc/2  vout_dec = vout_dec + (1 << b))
+    )
+
+    ; Count total ones across all 256 outputs
+    thermo_count = 0
+    for(b 0 255
+        bit_val = value(nth(b vout_all) sample_time)
+        when(bit_val > vcc/2  thermo_count = thermo_count + 1)
+    )
+
+    ; Pick measured value based on checker mode
+    if(use_thermo
+        measured = thermo_count
+        measured = vout_dec
+    )
+
+    ; Compute mismatch
+    v_delta = measured - n
+
+    drSetElem(delta_vec i v_delta)
+    drSetElem(vout_vec i measured)
+    drSetElem(expected_vec i n)
+    drSetElem(thermo_vec i thermo_count)
+    drSetElem(step_vec i i)
+
+    ; Track first failing step only
+    when(v_delta != 0.0 && !found_issue
+        n_issue = i
+        v_delta_issue = v_delta
+        found_issue = t
+    )
+)
+
+close(fp)
+
+; Waveforms: step number on x-axis
+delta_wave = drCreateWaveform(step_vec delta_vec)
+vout_wave = drCreateWaveform(step_vec vout_vec)
+expected_wave = drCreateWaveform(step_vec expected_vec)
+thermo_wave = drCreateWaveform(step_vec thermo_vec)
+
+; =====================
+; Outputs
+; =====================
+
+axlOutputResult(n_issue, "n_issue")             ; first failing step (-1 = pass)
+axlOutputResult(v_delta_issue, "v_delta_issue") ; delta at first mismatch (-1000 = pass)
+axlOutputResult(delta_wave, "delta_wave")       ; mismatch waveform
+axlOutputResult(vout_wave, "vout_wave")         ; measured value waveform
+axlOutputResult(expected_wave, "expected_wave") ; expected values from file
+axlOutputResult(thermo_wave, "thermo_wave")     ; total ones count (always computed)
+axlOutputResult(n_lines_file, "n_lines_file")   ; total lines in expected file
+axlOutputResult(n_lines_sim, "n_lines_sim")     ; samples that fit in sim time
