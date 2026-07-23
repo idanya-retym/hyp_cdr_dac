@@ -47,7 +47,11 @@ def vsel_to_decimal(v1, v0):
 N_UNITS = 64
 vin_rst_b = [0]*32 + [1]*32
 
-def run_sequence(step_list):
+def run_sequence(step_list, output_mode='dft'):
+    """Run sequence and return results.
+    output_mode='dft': returns 16-bit decimal from monitored units 30-33
+    output_mode='thermo': returns total ones count across all 256 outputs (0-256)
+    """
     states = [(0,0,0,0)] * N_UNITS
     states = evaluate_chain(states, 1, 1, 1, vin_rst_b)
     states = evaluate_chain(states, 1, 1, 0, vin_rst_b)
@@ -58,8 +62,6 @@ def run_sequence(step_list):
     results = []
 
     def get_decimal(states):
-        # 16 bits: vout0..3 of units 30,31,32,33 → single decimal
-        # unit30 = bits 0-3 (LSB), unit33 = bits 12-15 (MSB)
         val = 0
         bit_pos = 0
         for u in MONITOR:
@@ -68,7 +70,12 @@ def run_sequence(step_list):
                 bit_pos += 1
         return val
 
-    results.append((vsel_to_decimal(vsel1, vsel0), get_decimal(states)))
+    def get_thermo(states):
+        return sum(b for u in states for b in u)
+
+    get_val = get_thermo if output_mode == 'thermo' else get_decimal
+
+    results.append((vsel_to_decimal(vsel1, vsel0), get_val(states)))
 
     for direction in step_list:
         curr = (vsel1, vsel0)
@@ -79,7 +86,7 @@ def run_sequence(step_list):
             idx = CCW.index(curr)
             vsel1, vsel0 = CCW[(idx + 1) % 4]
         states = evaluate_chain(states, vsel1, vsel0, 0, vin_rst_b)
-        results.append((vsel_to_decimal(vsel1, vsel0), get_decimal(states)))
+        results.append((vsel_to_decimal(vsel1, vsel0), get_val(states)))
 
     return results
 
@@ -126,6 +133,18 @@ for _ in range(8):
 stress_results = run_sequence(stress_steps)
 print(f'Stress: {len(stress_results)} lines')
 
+# === Full sweep: up then down (rst_val=4) ===
+# From reset (code 128): CW to 256, then CCW to 0
+up_full_steps = ['cw'] * 128 + ['ccw'] * 256
+up_full_results = run_sequence(up_full_steps, output_mode='thermo')
+print(f'Up-full: {len(up_full_results)} lines, range {min(v for _,v in up_full_results)}-{max(v for _,v in up_full_results)}')
+
+# === Full sweep: down then up (rst_val=5) ===
+# From reset (code 128): CCW to 0, then CW to 256
+down_full_steps = ['ccw'] * 128 + ['cw'] * 256
+down_full_results = run_sequence(down_full_steps, output_mode='thermo')
+print(f'Down-full: {len(down_full_results)} lines, range {min(v for _,v in down_full_results)}-{max(v for _,v in down_full_results)}')
+
 # === Write files ===
 with open('input_files/vsel_stimulus.txt', 'w') as f:
     for vsel_dec, _ in main_results:
@@ -143,6 +162,24 @@ with open('input_files/expected_stress.txt', 'w') as f:
     for _, val in stress_results:
         f.write(f'{val}\n')
 
-print('Done. Expected files: one decimal per line (16-bit word from units 30-33, range 0-65535).')
-print(f'  expected_outputs.txt: {len(main_results)} lines')
-print(f'  expected_stress.txt: {len(stress_results)} lines')
+with open('input_files/vsel_up_full.txt', 'w') as f:
+    for vsel_dec, _ in up_full_results:
+        f.write(f'{vsel_dec}\n')
+
+with open('input_files/expected_up_full.txt', 'w') as f:
+    for _, val in up_full_results:
+        f.write(f'{val}\n')
+
+with open('input_files/vsel_down_full.txt', 'w') as f:
+    for vsel_dec, _ in down_full_results:
+        f.write(f'{vsel_dec}\n')
+
+with open('input_files/expected_down_full.txt', 'w') as f:
+    for _, val in down_full_results:
+        f.write(f'{val}\n')
+
+print('Done.')
+print(f'  expected_outputs.txt: {len(main_results)} lines (16-bit DFT decimal)')
+print(f'  expected_stress.txt: {len(stress_results)} lines (16-bit DFT decimal)')
+print(f'  expected_up_full.txt: {len(up_full_results)} lines (thermo count 0-256)')
+print(f'  expected_down_full.txt: {len(down_full_results)} lines (thermo count 0-256)')
