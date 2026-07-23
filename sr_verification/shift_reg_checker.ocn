@@ -1,4 +1,4 @@
-axlAddOutputs(list("n_issue" "v_delta_issue" "diff_lines" "n_lines_file" "n_lines_sim" "delta_wave" "vout_wave" "expected_wave" "thermo_wave"))
+axlAddOutputs(list("n_issue" "v_delta_issue" "diff_lines" "delta_wave" "vout_wave" "expected_wave" "thermo_wave"))
 
 defMathConstants('m)
 
@@ -12,12 +12,16 @@ vout_dft = list()
 for(b 0 15
     vout_dft = append1(vout_dft VT(sprintf(nil "/vout_dft<%d>" b)))
 )
-vout_all = list()
-for(b 0 63
-    vout_all = append1(vout_all VT(sprintf(nil "/vout0<%d>" b)))
-    vout_all = append1(vout_all VT(sprintf(nil "/vout1<%d>" b)))
-    vout_all = append1(vout_all VT(sprintf(nil "/vout2<%d>" b)))
-    vout_all = append1(vout_all VT(sprintf(nil "/vout3<%d>" b)))
+
+; Only load full thermometer bus for chain tests (rst_val >= 2)
+when(int(rst_val) >= 2
+    vout_all = list()
+    for(b 0 63
+        vout_all = append1(vout_all VT(sprintf(nil "/vout0<%d>" b)))
+        vout_all = append1(vout_all VT(sprintf(nil "/vout1<%d>" b)))
+        vout_all = append1(vout_all VT(sprintf(nil "/vout2<%d>" b)))
+        vout_all = append1(vout_all VT(sprintf(nil "/vout3<%d>" b)))
+    )
 )
 
 ; =====================
@@ -105,11 +109,13 @@ for(i 1 n_points
         when(bit_val > vcc/2  vout_dec = vout_dec + (1 << b))
     )
 
-    ; Count total ones across all 256 outputs
+    ; Count total ones across all 256 outputs (only for chain tests)
     thermo_count = 0
-    for(b 0 255
-        bit_val = value(nth(b vout_all) sample_time)
-        when(bit_val > vcc/2  thermo_count = thermo_count + 1)
+    when(int(rst_val) >= 2
+        for(b 0 255
+            bit_val = value(nth(b vout_all) sample_time)
+            when(bit_val > vcc/2  thermo_count = thermo_count + 1)
+        )
     )
 
     ; Pick measured value based on checker mode
@@ -152,8 +158,8 @@ diff_lines = n_lines_sim - n_lines_file
 axlOutputResult(n_issue, "n_issue")             ; first failing step (-1 = pass)
 axlOutputResult(v_delta_issue, "v_delta_issue") ; delta at first mismatch (0 = pass)
 axlOutputResult(diff_lines, "diff_lines")       ; n_lines_sim - n_lines_file
-axlOutputResult(n_lines_file, "n_lines_file")   ; total lines in expected file
-axlOutputResult(n_lines_sim, "n_lines_sim")     ; samples that fit in sim time
+;axlOutputResult(n_lines_file, "n_lines_file")   ; total lines in expected file
+;axlOutputResult(n_lines_sim, "n_lines_sim")     ; samples that fit in sim time
 axlOutputResult(delta_wave, "delta_wave")       ; mismatch waveform
 axlOutputResult(vout_wave, "vout_wave")         ; measured value waveform
 axlOutputResult(expected_wave, "expected_wave") ; expected values from file
