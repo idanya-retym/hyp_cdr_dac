@@ -1,4 +1,4 @@
-axlAddOutputs(list("n_issue" "v_delta_issue" "delta_wave" "vout_wave" "expected_wave" "thermo_wave" "n_lines_file" "n_lines_sim"))
+axlAddOutputs(list("n_issue" "v_delta_issue" "diff_lines" "n_lines_file" "n_lines_sim" "delta_wave" "vout_wave" "expected_wave" "thermo_wave"))
 
 defMathConstants('m)
 
@@ -78,7 +78,7 @@ n_points = min(n_lines_file n_lines_sim)
 ; =====================
 
 n_issue = -1
-v_delta_issue = -1000
+v_delta_issue = 0
 found_issue = nil              ; flag: only record first mismatch
 
 delta_vec = drCreateVec('double n_points)
@@ -147,11 +147,14 @@ thermo_wave = drCreateWaveform(step_vec thermo_vec)
 ; Outputs
 ; =====================
 
+diff_lines = n_lines_sim - n_lines_file
+
 axlOutputResult(n_issue, "n_issue")             ; first failing step (-1 = pass)
-axlOutputResult(v_delta_issue, "v_delta_issue") ; delta at first mismatch (-1000 = pass)
+axlOutputResult(v_delta_issue, "v_delta_issue") ; delta at first mismatch (0 = pass)
+axlOutputResult(diff_lines, "diff_lines")       ; n_lines_sim - n_lines_file
+axlOutputResult(n_lines_file, "n_lines_file")   ; total lines in expected file
+axlOutputResult(n_lines_sim, "n_lines_sim")     ; samples that fit in sim time
 axlOutputResult(delta_wave, "delta_wave")       ; mismatch waveform
 axlOutputResult(vout_wave, "vout_wave")         ; measured value waveform
 axlOutputResult(expected_wave, "expected_wave") ; expected values from file
 axlOutputResult(thermo_wave, "thermo_wave")     ; total ones count (always computed)
-axlOutputResult(n_lines_file, "n_lines_file")   ; total lines in expected file
-axlOutputResult(n_lines_sim, "n_lines_sim")     ; samples that fit in sim time
