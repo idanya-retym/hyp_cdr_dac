@@ -14,9 +14,9 @@ import numpy as np
 # USER PARAMETERS — change these and re-run
 # =============================================
 R_NOM   = 50       # nominal target [Ohm]
-R_MIN   = 25       # minimum resistance [Ohm]
-R_MAX   = 100      # maximum resistance [Ohm]
-N_BITS  = 5        # number of control bits (try 4-8)
+R_MIN   = 21.6     # design min (25/1.16) to guarantee 25Ω at +16% corner
+R_MAX   = 119      # design max (100/0.84) to guarantee 100Ω at -16% corner
+N_BITS  = 6        # 6 bits to maintain resolution with wider range
 # =============================================
 
 G_base = 1.0 / R_MAX
