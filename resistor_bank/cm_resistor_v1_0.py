@@ -5,8 +5,8 @@ Sets V_cm = I_cm * R_cm where I_cm = 10mA (constant).
 Separate switch to ground provides V_cm = 0.
 
 Topology:
-  R_base (always on, N_base sub-units in parallel)
-  + 4 switched binary-weighted conductances (1,2,4,8 sub-units)
+  R_base (always on, N_base sub-units)
+  + 2 switched binary-weighted conductances (1,2 sub-units)
   Sub-unit = 2100/21 = 100 ohm (matches signal bank R_base)
 
   G(code) = G_base + code * G_LSB,  code = 0..15
@@ -22,8 +22,8 @@ V_CM_MIN   = 50e-3    # min CM voltage [V]
 V_CM_MAX   = 200e-3   # max CM voltage [V]
 R_SIGNAL_UNIT = 2100  # signal bank unit resistor [ohm]
 SUB_DIV    = 21       # sub-unit = R_SIGNAL_UNIT / SUB_DIV
-N_BITS     = 4        # number of switched control bits
-N_BASE     = 5        # sub-units in the always-on base
+N_BITS     = 2        # number of switched control bits
+N_BASE     = 1        # sub-units in the always-on base
 # =============================================
 
 R_sub = R_SIGNAL_UNIT / SUB_DIV
