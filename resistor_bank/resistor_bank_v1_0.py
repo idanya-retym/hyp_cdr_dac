@@ -16,10 +16,10 @@ import numpy as np
 # USER PARAMETERS -- change these and re-run
 # =============================================
 R_NOM    = 50       # nominal target [Ohm]
-R_MIN    = 21.6     # design min (25/1.16) to guarantee 25 ohm at +16% corner
-R_MAX    = 119      # design max (100/0.84) to guarantee 100 ohm at -16% corner
+R_MIN    = 25       # min resistance at nominal process
+R_MAX    = 100      # max resistance at nominal process
 N_BITS   = 6        # number of switched control bits
-N_BASE   = 14       # unit resistors in the always-on base
+N_BASE   = 21       # unit resistors in the always-on base
 # =============================================
 
 G_base = 1.0 / R_MAX
