@@ -1,85 +1,90 @@
 """
-Bias resistor bank design: series-switched resistor.
+Bias resistor bank design: binary-weighted conductance DAC with base resistor.
+Same structure as the signal bank, scaled to 120-480 ohm (nominal 240).
 
-Nominal 240 ohm, programmable from 120 (half) to 480 (twice).
-Built from a series string of identical sub-units; each extra sub-unit
-has a bypass (short) switch. R = (N_min + code) * R_sub.
+Topology:
+  R_base (always on, N_base unit resistors in parallel)
+  + 6 switched binary-weighted conductances (1,2,4,8,16,32 units)
 
-Sub-unit is composed of the 2100 ohm signal-bank unit in parallel:
-  R_sub = 2100 / SUB_PAR
+  G(code) = G_base + code * G_LSB,  code = 0..2^N-1
+  G_LSB = G_base / N_base
+  R_unit = 1 / G_LSB
 """
 
 # =============================================
 # USER PARAMETERS -- change these and re-run
 # =============================================
-R_NOM      = 240      # nominal bias resistance [ohm]
-R_MIN      = 120      # min = half nominal [ohm]
-R_MAX      = 480      # max = twice nominal [ohm]
-R_SIGNAL_UNIT = 2100  # signal bank unit resistor [ohm]
-SUB_PAR    = 70       # sub-unit = R_SIGNAL_UNIT / SUB_PAR (parallel count)
+R_NOM    = 240      # nominal target [Ohm]
+R_MIN    = 120      # min resistance (half nominal)
+R_MAX    = 480      # max resistance (twice nominal)
+N_BITS   = 6        # number of switched control bits
+N_BASE   = 21       # unit resistors in the always-on base
 # =============================================
 
-R_sub = R_SIGNAL_UNIT / SUB_PAR
-
-# Series counts (must be integers)
-N_min = R_MIN / R_sub
-N_nom = R_NOM / R_sub
-N_max = R_MAX / R_sub
-assert N_min == int(N_min) and N_nom == int(N_nom) and N_max == int(N_max), \
-    f"R_sub={R_sub} does not divide R_MIN/R_NOM/R_MAX evenly -- pick another SUB_PAR"
-N_min, N_nom, N_max = int(N_min), int(N_nom), int(N_max)
-
-n_codes = N_max - N_min + 1            # code 0..(N_max-N_min)
-n_switch = N_max - N_min              # bypass switches (base of N_min always in)
-step_ohm = R_sub
-step_pct = R_sub / R_NOM * 100
-units_total = N_max * SUB_PAR         # total 2100 ohm resistors (full string)
+G_base = 1.0 / R_MAX
+G_lsb  = G_base / N_BASE
+R_unit = 1.0 / G_lsb
+N_total = N_BASE + (2**N_BITS - 1)  # total unit resistors
+R_min_actual = 1.0 / (G_base + (2**N_BITS - 1) * G_lsb)
+R_max_actual = 1.0 / G_base
 
 print(f"\n{'='*60}")
-print(f"  Bias Resistor Bank (series-switched)")
+print(f"  Bias Resistor Bank (with base)")
 print(f"{'='*60}")
-print(f"  R nominal      = {R_NOM} ohm")
-print(f"  R range        = {R_MIN} - {R_MAX} ohm (half - twice)")
-print(f"  Codes          = 0 to {n_codes-1} ({n_codes} values)")
-print(f"  Bypass switches= {n_switch}")
+print(f"  R range (actual) = {R_min_actual:.2f} - {R_max_actual:.1f} ohm")
+print(f"  R nominal        = {R_NOM} ohm")
+print(f"  Bits (N)         = {N_BITS}")
+print(f"  Codes            = 0 to {2**N_BITS - 1}")
 print(f"{'='*60}")
-print(f"\n  Signal bank unit = {R_SIGNAL_UNIT} ohm")
-print(f"  Sub-unit         = {R_SIGNAL_UNIT}/{SUB_PAR} = {R_sub:.1f} ohm ({SUB_PAR}x {R_SIGNAL_UNIT} in parallel)")
-print(f"  Series count     = {N_min} (min) .. {N_nom} (nom) .. {N_max} (max)")
-print(f"  Step             = {step_ohm:.1f} ohm ({step_pct:.2f}% of nominal)")
-print(f"  Total 2100 ohm units (full string) = {N_max} x {SUB_PAR} = {units_total}")
+print(f"\n  N_base         = {N_BASE} unit resistors (always on)")
+print(f"  R_base         = {R_max_actual:.1f} ohm")
+print(f"  R_unit         = {R_unit:.1f} ohm")
+print(f"  G_base         = {G_base*1e3:.4f} mS")
+print(f"  G_LSB          = {G_lsb*1e3:.4f} mS")
+print(f"  Total units    = {N_total} ({N_BASE} base + {2**N_BITS-1} switched)")
 
-# Full code sweep
+# Element table
+print(f"\n  {'Element':<8} {'Conductance':<15} {'Resistance':<15} {'Unit resistors'}")
+print(f"  {'-'*60}")
+print(f"  {'base':<8} {G_base*1e3:>10.4f} mS   {R_max_actual:>10.1f} ohm    {N_BASE}x {R_unit:.1f} ohm (always on)")
+for i in range(N_BITS):
+    g_bit = G_lsb * (2**i)
+    r_bit = 1.0 / g_bit
+    n_units = 2**i
+    print(f"  b{i:<5} {g_bit*1e3:>10.4f} mS   {r_bit:>10.1f} ohm    {n_units}x {R_unit:.1f} ohm (switched)")
+
+def r_from_code(code):
+    return 1.0 / (G_base + code * G_lsb)
+
+# Resolution at key points
+print(f"\n  Resolution (step size in ohm) at key resistances:")
+print(f"  {'R [ohm]':<10} {'Code':<8} {'Step dR [ohm]':<15} {'Step [%]'}")
+print(f"  {'-'*45}")
+for r_target in [R_min_actual, R_NOM, R_max_actual]:
+    g_target = 1.0 / r_target
+    code = int(round((g_target - G_base) / G_lsb))
+    code = max(0, min(2**N_BITS - 1, code))
+    r_actual = r_from_code(code)
+    r_next = r_from_code(code + 1) if code < 2**N_BITS - 1 else r_actual
+    step = abs(r_actual - r_next)
+    pct = step / r_actual * 100
+    print(f"  {r_actual:<10.2f} {code:<8d} {step:<15.4f} {pct:.2f}%")
+
+# Code for nominal
+g_nom = 1.0 / R_NOM
+code_nom = int(round((g_nom - G_base) / G_lsb))
+code_nom = max(0, min(2**N_BITS - 1, code_nom))
+r_nom_actual = r_from_code(code_nom)
+print(f"\n  Nominal: code={code_nom}, R={r_nom_actual:.3f} ohm (error={r_nom_actual-R_NOM:.3f} ohm)")
+
+# Full sweep
 print(f"\n  Full code sweep:")
-print(f"  {'Code':<8} {'Series':<10} {'R [ohm]':<12} {'dR [ohm]'}")
-print(f"  {'-'*40}")
-for code in range(n_codes):
-    n_series = N_min + code
-    r = n_series * R_sub
-    dr = R_sub if code < n_codes - 1 else 0
-    tag = ""
-    if n_series == N_min:
-        tag = "  <- min (half)"
-    elif n_series == N_nom:
-        tag = "  <- nominal"
-    elif n_series == N_max:
-        tag = "  <- max (twice)"
-    print(f"  {code:<8d} {n_series:<10d} {r:<12.1f} {dr:.1f}{tag}")
-
-# Comparison: sub-unit choice vs resolution / area
-print(f"\n{'='*60}")
-print(f"  Comparison: sub-unit choice")
-print(f"{'='*60}")
-print(f"  {'SUB_PAR':<9} {'R_sub':<9} {'Step':<9} {'% step':<9} {'Codes':<8} {'Units'}")
-print(f"  {'-'*55}")
-for sp in [35, 70, 105, 140, 210, 420]:
-    rs = R_SIGNAL_UNIT / sp
-    if R_MIN % rs != 0 or R_NOM % rs != 0 or R_MAX % rs != 0:
-        continue
-    nmn, nmx = int(R_MIN / rs), int(R_MAX / rs)
-    codes = nmx - nmn + 1
-    pct = rs / R_NOM * 100
-    units = nmx * sp
-    print(f"  {sp:<9d} {rs:<9.1f} {rs:<9.1f} {pct:<9.2f} {codes:<8d} {units}")
+print(f"  {'Code':<8} {'R [ohm]':<12} {'dR [ohm]'}")
+print(f"  {'-'*30}")
+for c in range(2**N_BITS):
+    r_c = r_from_code(c)
+    r_next = r_from_code(c + 1) if c < 2**N_BITS - 1 else 0
+    dr = r_c - r_next if r_next > 0 else 0
+    print(f"  {c:<8d} {r_c:<12.3f} {dr:.4f}")
 
 print(f"\n{'='*60}\n")
