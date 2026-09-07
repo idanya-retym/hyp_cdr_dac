@@ -31,7 +31,7 @@ UNIT_R = 3000.0        # ohm (a bit more is fine; change here)
 BANKS = [
     dict(name="diff",        Rmin=25,  Rmax=100, step=5,  short=False, nom=50),
     dict(name="common_mode", Rmin=10,  Rmax=20,  step=5,  short=True,  nom=15),
-    dict(name="bias",        Rmin=120, Rmax=480, step=40, short=False, nom=240),
+    dict(name="bias",        Rmin=120, Rmax=480, step=30, short=False, nom=240),
 ]
 
 FULL_SWEEP = False      # True -> print every code for every bank
@@ -158,18 +158,18 @@ def main():
     print(f"\n{'='*64}")
     print(f"  SUMMARY  (unit resistor = {UNIT_R:.0f} ohm)")
     print(f"{'='*64}")
-    print(f"  {'Bank':<14} {'Range [ohm]':<16} {'Nominal':<18} {'Bits':<6} {'Legs':<6} {'Size [3k units]':<16} {'Switch'}")
-    print(f"  {'-'*84}")
+    print(f"  {'Bank':<14} {'Range [ohm]':<16} {'Nominal (actual)':<22} {'Bits':<6} {'Legs':<6} {'Size [3k units]':<16} {'Switch'}")
+    print(f"  {'-'*88}")
     tot_units = 0
     tot_sw = 0
     for d in designs:
         rng = f"{d['R_floor']:.0f}-{d['R_top']:.0f}"
-        nom = f"{d['nom']:.0f} @ code {d['code_nom']}" if d["nom"] else "-"
-        print(f"  {d['cfg']['name']:<14} {rng:<16} {nom:<18} {d['N_bits']:<6d} {d['total_legs']:<6d} {d['total_units']:<16d} {d['switches']}")
+        nom = f"{d['R_nom']:.1f} @ code {d['code_nom']}" if d["nom"] else "-"
+        print(f"  {d['cfg']['name']:<14} {rng:<16} {nom:<22} {d['N_bits']:<6d} {d['total_legs']:<6d} {d['total_units']:<16d} {d['switches']}")
         tot_units += d["total_units"]
         tot_sw += d["switches"]
-    print(f"  {'-'*84}")
-    print(f"  {'TOTAL SIZE':<14} {'':<16} {'':<18} {'':<6} {'':<6} {tot_units:<16d} {tot_sw}")
+    print(f"  {'-'*88}")
+    print(f"  {'TOTAL SIZE':<14} {'':<16} {'':<22} {'':<6} {'':<6} {tot_units:<16d} {tot_sw}")
     print(f"\n{'='*64}\n")
 
 
