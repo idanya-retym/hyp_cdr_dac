@@ -75,8 +75,10 @@ def design(cfg):
     # nominal target -> code that gets closest
     nom = cfg.get("nom")
     if nom:
-        code_nom = int(round((1.0 / float(nom) - Gmin) / g_lsb))
-        code_nom = max(0, min(max_code, code_nom))
+        ideal = (1.0 / float(nom) - Gmin) / g_lsb
+        cands = [int(math.floor(ideal)), int(math.ceil(ideal))]
+        cands = [max(0, min(max_code, c)) for c in cands]
+        code_nom = min(cands, key=lambda c: abs(R(c) - float(nom)))
         R_nom = R(code_nom)
     else:
         code_nom = None
