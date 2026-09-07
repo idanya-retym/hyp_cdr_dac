@@ -29,7 +29,7 @@ UNIT_R = 3000.0        # ohm (a bit more is fine; change here)
 # BANKS: edit Rmin, Rmax, step (ohm), short
 # =============================================
 BANKS = [
-    dict(name="signal",      Rmin=25,  Rmax=100, step=3.0,  short=False),
+    dict(name="diff",        Rmin=25,  Rmax=100, step=3.0,  short=False),
     dict(name="common_mode", Rmin=10,  Rmax=20,  step=1.0,  short=True),
     dict(name="bias",        Rmin=120, Rmax=480, step=20.0, short=False),
 ]
