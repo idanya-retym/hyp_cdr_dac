@@ -140,17 +140,17 @@ def main():
     print(f"\n{'='*64}")
     print(f"  SUMMARY  (unit resistor = {UNIT_R:.0f} ohm)")
     print(f"{'='*64}")
-    print(f"  {'Bank':<14} {'Range [ohm]':<16} {'Bits':<6} {'Legs':<6} {'3k units':<10} {'Switch'}")
-    print(f"  {'-'*62}")
+    print(f"  {'Bank':<14} {'Range [ohm]':<16} {'Bits':<6} {'Legs':<6} {'Size [3k units]':<16} {'Switch'}")
+    print(f"  {'-'*66}")
     tot_units = 0
     tot_sw = 0
     for d in designs:
         rng = f"{d['R_floor']:.0f}-{d['R_top']:.0f}"
-        print(f"  {d['cfg']['name']:<14} {rng:<16} {d['N_bits']:<6d} {d['total_legs']:<6d} {d['total_units']:<10d} {d['switches']}")
+        print(f"  {d['cfg']['name']:<14} {rng:<16} {d['N_bits']:<6d} {d['total_legs']:<6d} {d['total_units']:<16d} {d['switches']}")
         tot_units += d["total_units"]
         tot_sw += d["switches"]
-    print(f"  {'-'*62}")
-    print(f"  {'TOTAL':<14} {'':<16} {'':<6} {'':<6} {tot_units:<10d} {tot_sw}")
+    print(f"  {'-'*66}")
+    print(f"  {'TOTAL SIZE':<14} {'':<16} {'':<6} {'':<6} {tot_units:<16d} {tot_sw}")
     print(f"\n{'='*64}\n")
 
 
