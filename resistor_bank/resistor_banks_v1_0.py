@@ -29,9 +29,9 @@ UNIT_R = 3000.0        # ohm (a bit more is fine; change here)
 # BANKS: edit Rmin, Rmax, step (ohm), short
 # =============================================
 BANKS = [
-    dict(name="diff",        Rmin=25,  Rmax=100, step=3.0,  short=False),
-    dict(name="common_mode", Rmin=10,  Rmax=20,  step=1.0,  short=True),
-    dict(name="bias",        Rmin=120, Rmax=480, step=20.0, short=False),
+    dict(name="diff",        Rmin=25,  Rmax=100, step=5,  short=False, nom=50),
+    dict(name="common_mode", Rmin=10,  Rmax=20,  step=5,  short=True,  nom=15),
+    dict(name="bias",        Rmin=120, Rmax=480, step=40, short=False, nom=240),
 ]
 
 FULL_SWEEP = False      # True -> print every code for every bank
@@ -72,12 +72,23 @@ def design(cfg):
     total_units = total_legs * upl
     switches = N_bits + (1 if cfg["short"] else 0)
 
+    # nominal target -> code that gets closest
+    nom = cfg.get("nom")
+    if nom:
+        code_nom = int(round((1.0 / float(nom) - Gmin) / g_lsb))
+        code_nom = max(0, min(max_code, code_nom))
+        R_nom = R(code_nom)
+    else:
+        code_nom = None
+        R_nom = None
+
     return dict(
         cfg=cfg, Rmin=Rmin, Rmax=Rmax, step=step,
         R_leg=R_leg, mult=mult, mode=mode, upl=upl, g_lsb=g_lsb,
         N_base=N_base, N_bits=N_bits, max_code=max_code, code_Rmin=code_Rmin,
         R=R, total_legs=total_legs, total_units=total_units, switches=switches,
         R_top=R(0), R_at_Rmin=R(code_Rmin), R_floor=R(max_code),
+        nom=nom, code_nom=code_nom, R_nom=R_nom,
     )
 
 
@@ -88,6 +99,8 @@ def report(d):
     print(f"{'='*64}")
     print(f"  Requested   : {d['Rmin']:.1f} - {d['Rmax']:.1f} ohm, step ~{d['step']:.1f} ohm")
     print(f"  Achieved    : {d['R_floor']:.2f} - {d['R_top']:.2f} ohm  (reaches {d['Rmin']:.1f} at code {d['code_Rmin']})")
+    if d["nom"]:
+        print(f"  Nominal     : {d['nom']:.1f} ohm -> code {d['code_nom']}  (R = {d['R_nom']:.2f} ohm, error {d['R_nom']-d['nom']:+.2f} ohm)")
     print(f"  Bits        : {d['N_bits']}   (codes 0..{d['max_code']})")
     if cfg["short"]:
         print(f"  Short switch: yes  (code 'short' -> 0 ohm)")
@@ -112,7 +125,8 @@ def report(d):
     print(f"\n  {'Code':<10} {'R [ohm]':<12} {'dR [ohm]'}")
     print(f"  {'-'*34}")
     show = range(d["max_code"] + 1) if FULL_SWEEP else \
-        sorted(set([0, 1, d["code_Rmin"], d["max_code"]]))
+        sorted(set([0, 1, d["code_Rmin"], d["max_code"]] +
+                    ([d["code_nom"]] if d["nom"] else [])))
     for c in show:
         if c < 0 or c > d["max_code"]:
             continue
@@ -120,6 +134,8 @@ def report(d):
         tag = ""
         if c == 0:
             tag = "  <- max"
+        elif d["nom"] and c == d["code_nom"]:
+            tag = "  <- nominal"
         elif c == d["code_Rmin"]:
             tag = "  <- reaches Rmin"
         elif c == d["max_code"]:
