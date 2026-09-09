@@ -19,6 +19,14 @@ Structure per bank:
 """
 
 import math
+from fractions import Fraction
+
+
+def min_units(R):
+    """Fewest UNIT_R resistors (series+parallel) to realize R.
+    R = UNIT_R * a/b (lowest terms) -> a series of b-parallel = a*b units."""
+    fr = Fraction(R / UNIT_R).limit_denominator(100000)
+    return fr.numerator * fr.denominator
 
 # =============================================
 # GLOBAL: the one physical unit resistor
@@ -30,8 +38,8 @@ UNIT_R = 3000.0        # ohm (a bit more is fine; change here)
 # =============================================
 BANKS = [
     dict(name="diff",        Rmin=25,  Rmax=100, step=5,  short=False, nom=50),
-    dict(name="common_mode", Rmin=10,  Rmax=20,  step=5,  short=True,  nom=15),
-    dict(name="bias",        Rmin=120, Rmax=480, step=30, short=False, nom=240),
+    dict(name="common_mode", Rmin=10,  Rmax=20,  step=5,  short=True,  nom=10),
+    dict(name="bias",        Rmin=120, Rmax=480, step=40, short=False, nom=240),
 ]
 
 FULL_SWEEP = False      # True -> print every code for every bank
@@ -115,13 +123,13 @@ def report(d):
     print(f"  Bank unit   : {leg_desc}  ({d['upl']} unit-R per leg)")
 
     # element table
-    print(f"\n  {'Element':<8} {'Legs':<6} {'Resistance':<14} {'3k units'}")
-    print(f"  {'-'*46}")
-    print(f"  {'base':<8} {d['N_base']:<6d} {d['R_top']:>10.2f} ohm  {d['N_base']*d['upl']:>6d}  (always on)")
+    print(f"\n  {'Element':<8} {'Legs':<6} {'Resistance':<14} {'3k units (min)'}")
+    print(f"  {'-'*48}")
+    print(f"  {'base':<8} {d['N_base']:<6d} {d['R_top']:>10.2f} ohm  {min_units(d['R_top']):>6d}  (always on)")
     for i in range(d["N_bits"]):
         legs = 2 ** i
         r = d["R_leg"] / legs
-        print(f"  b{i:<7d} {legs:<6d} {r:>10.2f} ohm  {legs*d['upl']:>6d}  (switch)")
+        print(f"  b{i:<7d} {legs:<6d} {r:>10.2f} ohm  {min_units(r):>6d}  (switch)")
 
     # key codes
     print(f"\n  {'Code':<10} {'R [ohm]':<12} {'dR [ohm]'}")
@@ -146,7 +154,10 @@ def report(d):
     if cfg["short"]:
         print(f"  {'short':<10} {'0.000':<12} --")
 
-    print(f"\n  SIZE: {d['total_legs']} legs, {d['total_units']} unit-R ({UNIT_R:.0f} ohm each), {d['switches']} switches")
+    min_total = min_units(d["R_top"]) + sum(
+        min_units(d["R_leg"] / (2 ** i)) for i in range(d["N_bits"]))
+    print(f"\n  SIZE: {d['total_legs']} legs, {min_total} unit-R ({UNIT_R:.0f} ohm each, minimal build), {d['switches']} switches")
+    d["min_total"] = min_total
 
 
 def main():
@@ -165,8 +176,8 @@ def main():
     for d in designs:
         rng = f"{d['R_floor']:.0f}-{d['R_top']:.0f}"
         nom = f"{d['R_nom']:.1f} @ code {d['code_nom']}" if d["nom"] else "-"
-        print(f"  {d['cfg']['name']:<14} {rng:<16} {nom:<22} {d['N_bits']:<6d} {d['total_legs']:<6d} {d['total_units']:<16d} {d['switches']}")
-        tot_units += d["total_units"]
+        print(f"  {d['cfg']['name']:<14} {rng:<16} {nom:<22} {d['N_bits']:<6d} {d['total_legs']:<6d} {d['min_total']:<16d} {d['switches']}")
+        tot_units += d["min_total"]
         tot_sw += d["switches"]
     print(f"  {'-'*88}")
     print(f"  {'TOTAL SIZE':<14} {'':<16} {'':<22} {'':<6} {'':<6} {tot_units:<16d} {tot_sw}")
