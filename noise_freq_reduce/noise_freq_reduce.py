@@ -54,11 +54,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # Input CSV: 2 columns (freq_Hz, psd_value). First row is a header and skipped.
 INPUT_FILE = os.path.join(HERE, "VCO_LDO_4p7uF_0p1uF_noise_v_sqr.csv")
 
-# Outputs are named after the noise file: <noise>_freqs.txt / _freqs.png / .log
+# Outputs: <noise>_err<N>pct_freqs.txt / _freqs.png / .log (set below CONFIG knobs)
 OUT_BASE = os.path.splitext(INPUT_FILE)[0]
-
-# Output text file (one frequency per line).
-OUTPUT_FILE = OUT_BASE + "_freqs.txt"
 
 # --- Frequency range to keep (Hz). Points outside are ignored. ---
 START_FREQ = 10e3          # lower bound (Hz). 0 = no lower bound.
@@ -70,7 +67,7 @@ METHOD = "area"
 # ======================= AREA method knobs ==================================
 # The single knob: keep as few points as possible while total integrated-noise
 # (RMS) error stays within this percentage. 1.0 = "within 1% of true noise".
-TARGET_NOISE_ERROR_PCT = 1.0
+TARGET_NOISE_ERROR_PCT = 5.0
 # Optional extra safety cap on point count (None = purely accuracy-driven).
 # If set, stops removing once this many points remain even if more accuracy
 # budget is left. Leave None to get the minimum points for the target error.
@@ -115,10 +112,15 @@ SWEEP_VALUES = None
 
 # --- Reconstruction plot (recommended ON for a final verify run). ---
 PLOT = True
-PLOT_FILE = OUT_BASE + "_freqs.png"
+
+# Output names include the accuracy setting so runs don't overwrite each other.
+OUT_TAG = (f"_err{TARGET_NOISE_ERROR_PCT:g}pct" if METHOD == "area"
+           else f"_tol{TOLERANCE:g}")
+OUTPUT_FILE = OUT_BASE + OUT_TAG + "_freqs.txt"
+PLOT_FILE = OUT_BASE + OUT_TAG + "_freqs.png"
 
 # Run log (also printed to the console).
-LOG_FILE = OUT_BASE + ".log"
+LOG_FILE = OUT_BASE + OUT_TAG + ".log"
 
 # ----------------------------------------------------------------------------
 # End of CONFIG
