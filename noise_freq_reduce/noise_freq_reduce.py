@@ -2,9 +2,7 @@
 """
 noise_freq_reduce.py
 
-v1.7: spur protection for the area method (spur peaks are always kept),
-coverage report of an existing frequency list (noise error, gaps, missed
-spurs), and optional merge of that list into the output.
+v1.7: spur protection for the area method (spur peaks are always kept).
 
 Reduce a dense PSD/noise sweep (frequency, value) into the *smallest* list of
 frequencies that still reproduces the noise within a target accuracy, then write
@@ -38,7 +36,6 @@ Run from Python. Edit the CONFIG block below, then execute.
 """
 
 import os
-import re
 import sys
 import logging
 
@@ -79,12 +76,7 @@ SPUR_PROTECT = True
 SPUR_THRESHOLD_DB = 6.0    # peak must rise this many dB above the local floor
 SPUR_WINDOW = 51           # samples in the rolling-median floor estimate
 SPUR_NEIGHBORS = 1         # also keep +-N samples around each peak (spur shape)
-
-# ======================= Existing frequency list ============================
-# Your current Spectre list. Gets a coverage report; None = skip.
-EXISTING_FREQ_FILE = os.path.join(HERE, "freq_points_noise.txt")
-MERGE_EXISTING = True      # include the existing freqs in the output list
-SPUR_MISS_DB = 3.0         # a spur is "missed" if a list under-reads it by more
+SPUR_MISS_DB = 3.0         # a spur is "missed" if the list under-reads it by more
 
 # ======================= CURVE method knobs (METHOD="curve") =================
 # X_LOG/Y_LOG: axes for the curve-shape decision (log freq / dB value).
@@ -248,49 +240,8 @@ def rolling_stat(y, window, kind):
 
 
 # ---------------------------------------------------------------------------
-# Spurs / existing frequency list
+# Spurs
 # ---------------------------------------------------------------------------
-_SUFFIX = {"T": 1e12, "G": 1e9, "M": 1e6, "K": 1e3, "k": 1e3,
-           "m": 1e-3, "u": 1e-6, "n": 1e-9, "p": 1e-12, "f": 1e-15}
-_NUM_RE = re.compile(r"^([+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?)([a-zA-Z]*)$")
-
-
-def _parse_num(tok):
-    """Parse a number with optional Spectre suffix (1k, 10M, 2.5G, 100Hz)."""
-    m = _NUM_RE.match(tok)
-    if not m:
-        return None
-    val = float(m.group(1))
-    suf = m.group(2)
-    if suf and suf.lower() != "hz":
-        mult = _SUFFIX.get(suf[0])
-        if mult is None:
-            return None
-        val *= mult
-    return val
-
-
-def load_freq_list(path):
-    """Load a frequency list (one per line, or a Spectre values=[...] list)."""
-    if not os.path.isfile(path):
-        raise FileNotFoundError(f"Existing frequency file not found: {path}")
-    with open(path, "r", encoding="utf-8-sig", errors="replace") as fh:
-        text = fh.read()
-    vals = [v for v in (_parse_num(t) for t in re.split(r"[\s,;\[\]=()]+", text) if t)
-            if v is not None]
-    if not vals:
-        raise ValueError(f"No frequencies parsed from: {path}")
-    return np.unique(np.asarray(vals, dtype=float))
-
-
-def nearest_indices(f, targets):
-    """Indices of the samples in sorted `f` nearest to each target."""
-    pos = np.clip(np.searchsorted(f, targets), 1, f.size - 1)
-    left = pos - 1
-    pick = np.where(np.abs(targets - f[left]) <= np.abs(f[pos] - targets), left, pos)
-    return np.unique(pick)
-
-
 def detect_spurs(f, psd):
     """Indices of local maxima that rise SPUR_THRESHOLD_DB above a median floor."""
     y = 10.0 * np.log10(np.maximum(psd, TINY))
@@ -306,43 +257,6 @@ def spur_errors_db(f, psd, keep, peaks):
     idx = np.flatnonzero(keep)
     recon = np.interp(f[peaks], f[idx], psd[idx])
     return 10.0 * np.log10(np.maximum(recon, TINY) / np.maximum(psd[peaks], TINY))
-
-
-def report_existing(f, psd, ex_freqs, peaks):
-    """Log how well an existing list covers the data. Returns (index mask, freqs in range)."""
-    in_rng = ex_freqs[(ex_freqs >= f[0]) & (ex_freqs <= f[-1])]
-    log.info("OLD list (%s) - for comparison only:", os.path.basename(EXISTING_FREQ_FILE))
-    log.info("OLD list: %d freqs, %d inside [%.3g, %.3g] Hz, %d outside.",
-             ex_freqs.size, in_rng.size, f[0], f[-1], ex_freqs.size - in_rng.size)
-    mask = np.zeros(f.size, dtype=bool)
-    if in_rng.size < 2:
-        log.warning("OLD list has < 2 points in range; skipping coverage report.")
-        return mask, in_rng
-    mask[nearest_indices(f, in_rng)] = True
-
-    _, _, pct = integrated_noise_error(f, psd, mask)
-    log.info("OLD list: integrated-noise error = %+.4f%%", pct)
-
-    if in_rng[0] > f[0] * 1.01:
-        log.warning("OLD list does not cover the low end: %.3g -> %.3g Hz.", f[0], in_rng[0])
-    if in_rng[-1] < f[-1] * 0.99:
-        log.warning("OLD list does not cover the high end: %.3g -> %.3g Hz.", in_rng[-1], f[-1])
-    gaps = np.diff(np.log10(in_rng))
-    g = int(np.argmax(gaps))
-    log.info("OLD list largest gap: %.3g decades (%.4g -> %.4g Hz).",
-             gaps[g], in_rng[g], in_rng[g + 1])
-
-    if peaks.size:
-        err = spur_errors_db(f, psd, mask, peaks)
-        missed = np.flatnonzero(err < -SPUR_MISS_DB)
-        log.info("OLD list misses %d of %d spurs (under-reads by > %.1f dB).",
-                 missed.size, peaks.size, SPUR_MISS_DB)
-        worst = missed[np.argsort(err[missed])][:15]
-        for k in worst:
-            p = peaks[k]
-            log.info("    OLD list missed spur %14.6g Hz  %8.2f dB  (reads %+.1f dB)",
-                     f[p], 10.0 * np.log10(max(psd[p], TINY)), err[k])
-    return mask, in_rng
 
 
 # ---------------------------------------------------------------------------
@@ -591,16 +505,6 @@ def main():
             log.info("Detected %d spur(s) > %.1f dB above floor; force-keeping %d point(s).",
                      peaks.size, SPUR_THRESHOLD_DB, int(force.sum()))
 
-        exist_mask = None
-        ex_in = None
-        if EXISTING_FREQ_FILE:
-            ex = load_freq_list(EXISTING_FREQ_FILE)
-            log.info("-" * 60)
-            exist_mask, ex_in = report_existing(f, psd_full, ex, peaks)
-            log.info("-" * 60)
-            if MERGE_EXISTING:
-                force = exist_mask if force is None else (force | exist_mask)
-
         if SWEEP_VALUES:
             run_sweep(f, x, y_raw, psd_full, SWEEP_VALUES, y_units, force=force)
             return 0
@@ -611,8 +515,6 @@ def main():
             used = f"{TARGET_NOISE_ERROR_PCT:g}% target"
         elif METHOD == "curve":
             keep, tol = curve_reduce(x, y_raw, y_units)
-            if MERGE_EXISTING and exist_mask is not None:
-                keep |= exist_mask
             used = f"{tol:g} {y_units} tol"
         else:
             raise ValueError(f"Unknown METHOD: {METHOD!r} (use 'area' or 'curve').")
@@ -621,15 +523,11 @@ def main():
             keep[0] = True
             keep[-1] = True
 
-        if MERGE_EXISTING and exist_mask is not None:
-            # write existing freqs with their original values, not the nearest CSV sample
-            sel_freqs = np.union1d(f[keep & ~exist_mask], ex_in)
-        else:
-            sel_freqs = f[keep]
+        sel_freqs = f[keep]
         rms_full, rms_recon, noise_pct = integrated_noise_error(f, psd_full, keep)
         if peaks.size:
             err = spur_errors_db(f, psd_full, keep, peaks)
-            log.info("NEW list misses %d of %d spurs (under-reads by > %.1f dB).",
+            log.info("Spurs missed: %d of %d (under-read by > %.1f dB).",
                      int(np.sum(err < -SPUR_MISS_DB)), peaks.size, SPUR_MISS_DB)
 
         text = "\n".join(FREQ_FORMAT.format(v) for v in sel_freqs)
