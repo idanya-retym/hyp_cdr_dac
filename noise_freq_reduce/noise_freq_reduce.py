@@ -67,7 +67,7 @@ METHOD = "area"
 # ======================= AREA method knobs ==================================
 # The single knob: keep as few points as possible while total integrated-noise
 # (RMS) error stays within this percentage. 1.0 = "within 1% of true noise".
-TARGET_NOISE_ERROR_PCT = 5.0
+TARGET_NOISE_ERROR_PCT = 10.0
 # Optional extra safety cap on point count (None = purely accuracy-driven).
 # If set, stops removing once this many points remain even if more accuracy
 # budget is left. Leave None to get the minimum points for the target error.
@@ -311,35 +311,36 @@ def spur_errors_db(f, psd, keep, peaks):
 def report_existing(f, psd, ex_freqs, peaks):
     """Log how well an existing list covers the data. Returns (index mask, freqs in range)."""
     in_rng = ex_freqs[(ex_freqs >= f[0]) & (ex_freqs <= f[-1])]
-    log.info("Existing list: %d freqs, %d inside [%.3g, %.3g] Hz, %d outside.",
+    log.info("OLD list (%s) - for comparison only:", os.path.basename(EXISTING_FREQ_FILE))
+    log.info("OLD list: %d freqs, %d inside [%.3g, %.3g] Hz, %d outside.",
              ex_freqs.size, in_rng.size, f[0], f[-1], ex_freqs.size - in_rng.size)
     mask = np.zeros(f.size, dtype=bool)
     if in_rng.size < 2:
-        log.warning("Existing list has < 2 points in range; skipping coverage report.")
+        log.warning("OLD list has < 2 points in range; skipping coverage report.")
         return mask, in_rng
     mask[nearest_indices(f, in_rng)] = True
 
     _, _, pct = integrated_noise_error(f, psd, mask)
-    log.info("Existing list alone: integrated-noise error = %+.4f%%", pct)
+    log.info("OLD list: integrated-noise error = %+.4f%%", pct)
 
     if in_rng[0] > f[0] * 1.01:
-        log.warning("Existing list does not cover the low end: %.3g -> %.3g Hz.", f[0], in_rng[0])
+        log.warning("OLD list does not cover the low end: %.3g -> %.3g Hz.", f[0], in_rng[0])
     if in_rng[-1] < f[-1] * 0.99:
-        log.warning("Existing list does not cover the high end: %.3g -> %.3g Hz.", in_rng[-1], f[-1])
+        log.warning("OLD list does not cover the high end: %.3g -> %.3g Hz.", in_rng[-1], f[-1])
     gaps = np.diff(np.log10(in_rng))
     g = int(np.argmax(gaps))
-    log.info("Largest gap in existing list: %.3g decades (%.4g -> %.4g Hz).",
+    log.info("OLD list largest gap: %.3g decades (%.4g -> %.4g Hz).",
              gaps[g], in_rng[g], in_rng[g + 1])
 
     if peaks.size:
         err = spur_errors_db(f, psd, mask, peaks)
         missed = np.flatnonzero(err < -SPUR_MISS_DB)
-        log.info("Existing list misses %d of %d spurs (under-reads by > %.1f dB).",
+        log.info("OLD list misses %d of %d spurs (under-reads by > %.1f dB).",
                  missed.size, peaks.size, SPUR_MISS_DB)
         worst = missed[np.argsort(err[missed])][:15]
         for k in worst:
             p = peaks[k]
-            log.info("    missed spur %14.6g Hz  %8.2f dB  (list reads %+.1f dB)",
+            log.info("    OLD list missed spur %14.6g Hz  %8.2f dB  (reads %+.1f dB)",
                      f[p], 10.0 * np.log10(max(psd[p], TINY)), err[k])
     return mask, in_rng
 
@@ -628,7 +629,7 @@ def main():
         rms_full, rms_recon, noise_pct = integrated_noise_error(f, psd_full, keep)
         if peaks.size:
             err = spur_errors_db(f, psd_full, keep, peaks)
-            log.info("Output list misses %d of %d spurs (under-reads by > %.1f dB).",
+            log.info("NEW list misses %d of %d spurs (under-reads by > %.1f dB).",
                      int(np.sum(err < -SPUR_MISS_DB)), peaks.size, SPUR_MISS_DB)
 
         text = "\n".join(FREQ_FORMAT.format(v) for v in sel_freqs)
