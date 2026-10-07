@@ -54,8 +54,11 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 # Input CSV: 2 columns (freq_Hz, psd_value). First row is a header and skipped.
 INPUT_FILE = os.path.join(HERE, "VCO_LDO_4p7uF_0p1uF_noise_v_sqr.csv")
 
+# Outputs are named after the noise file: <noise>_freqs.txt / _freqs.png / .log
+OUT_BASE = os.path.splitext(INPUT_FILE)[0]
+
 # Output text file (one frequency per line).
-OUTPUT_FILE = os.path.join(HERE, "spectre_noise_freqs.txt")
+OUTPUT_FILE = OUT_BASE + "_freqs.txt"
 
 # --- Frequency range to keep (Hz). Points outside are ignored. ---
 START_FREQ = 10e3          # lower bound (Hz). 0 = no lower bound.
@@ -112,7 +115,10 @@ SWEEP_VALUES = None
 
 # --- Reconstruction plot (recommended ON for a final verify run). ---
 PLOT = True
-PLOT_FILE = os.path.join(HERE, "spectre_noise_freqs.png")
+PLOT_FILE = OUT_BASE + "_freqs.png"
+
+# Run log (also printed to the console).
+LOG_FILE = OUT_BASE + ".log"
 
 # ----------------------------------------------------------------------------
 # End of CONFIG
@@ -122,6 +128,8 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
     datefmt="%H:%M:%S",
+    handlers=[logging.StreamHandler(),
+              logging.FileHandler(LOG_FILE, mode="w", encoding="utf-8")],
 )
 log = logging.getLogger("noise_freq_reduce")
 
