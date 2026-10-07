@@ -52,13 +52,13 @@ import numpy as np
 # ----------------------------------------------------------------------------
 
 # Input CSV: 2 columns (freq_Hz, psd_value). First row is a header and skipped.
-INPUT_FILE = r"C:\Users\idanya\OneDrive - Retym, Inc\Desktop\vcoldo_wdc2dc - Copy.csv"
+INPUT_FILE = r"C:\Users\idanya\OneDrive - Retym, Inc\Desktop\vcoldo_wdc2dc.csv"
 
 # Output text file (comma separated frequencies, single line).
 OUTPUT_FILE = r"C:\Users\idanya\OneDrive - Retym, Inc\Desktop\spectre_noise_freqs.txt"
 
 # --- Frequency range to keep (Hz). Points outside are ignored. ---
-START_FREQ = 0.0          # lower bound (Hz). 0 = no lower bound.
+START_FREQ = 10e3          # lower bound (Hz). 0 = no lower bound.
 STOP_FREQ = 1.0e9         # upper bound (Hz).
 
 # --- Accuracy domain (try both to see what suits your data) ---
@@ -96,17 +96,17 @@ FREQ_FORMAT = "{:.1f}"
 #   "none"        -> no smoothing (v1.0 behaviour: DP on the raw curve).
 #   "median"      -> rolling median (robust; best at keeping spikes crisp).
 #   "moving_avg"  -> rolling mean (smoother but blurs spikes a little).
-SMOOTHING = "none"
-SMOOTH_WINDOW = 9          # samples per window (odd number recommended).
+SMOOTHING = "median"
+SMOOTH_WINDOW = 21          # samples per window (odd number recommended).
 # Spike protection when smoothing is on. Units match Y_LOG (dB if Y_LOG=True).
 # A raw point kept whenever (raw - smoothed_floor) > SPIKE_THRESHOLD.
-SPIKE_THRESHOLD = 1.0
+SPIKE_THRESHOLD = 3.0
 
 # --- Tolerance sweep: print a table across several tolerances, then exit. ---
 # None                      -> normal single run (writes OUTPUT_FILE / plot).
 # a list e.g. [0.1,0.25,0.5,1.0,2.0] -> just print the reduction/error table
 #                                       (no output file written).
-SWEEP_TOLERANCES = None
+SWEEP_TOLERANCES = [0.1,0.25,0.5,1.0,2.0]
 
 # --- Reconstruction plot. ---
 PLOT = False               # True to save a PNG overlay of kept points.

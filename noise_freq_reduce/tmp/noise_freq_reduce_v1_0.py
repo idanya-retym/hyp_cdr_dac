@@ -41,13 +41,13 @@ import numpy as np
 # ----------------------------------------------------------------------------
 
 # Input CSV: 2 columns (freq_Hz, psd_value). First row is a header and skipped.
-INPUT_FILE = r"C:\Users\idanya\OneDrive - Retym, Inc\Desktop\vcoldo_wdc2dc - Copy.csv"
+INPUT_FILE = r"C:\Users\idanya\OneDrive - Retym, Inc\Desktop\vcoldo_wdc2dc.csv"
 
 # Output text file (comma separated frequencies, single line).
 OUTPUT_FILE = r"C:\Users\idanya\OneDrive - Retym, Inc\Desktop\spectre_noise_freqs.txt"
 
 # --- Frequency range to keep (Hz). Points outside are ignored. ---
-START_FREQ = 0.0          # lower bound (Hz). 0 = no lower bound.
+START_FREQ = 10.0e3          # lower bound (Hz). 0 = no lower bound.
 STOP_FREQ = 1.0e9         # upper bound (Hz).
 
 # --- Accuracy domain (try both to see what suits your data) ---
@@ -61,7 +61,7 @@ Y_LOG = True
 #   Y_LOG = True  -> tolerance is in dB   (e.g. 0.25 means "within 0.25 dB").
 #   Y_LOG = False -> tolerance is in the raw linear units of the value column.
 # Smaller = more points / more accurate. Larger = fewer points.
-TOLERANCE = 0.25
+TOLERANCE = 2
 
 # --- Optional hard cap on number of output frequencies. ---
 # None            -> no cap; use TOLERANCE as-is (as few as possible for that tol).
