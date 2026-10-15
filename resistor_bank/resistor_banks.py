@@ -1,10 +1,11 @@
+# Version: v1.1
 """
 Unified resistor-bank generator.
 
 Designs any number of binary-weighted conductance banks (base resistor
-always on + N switched binary bits) from a SINGLE physical unit resistor.
-Each bank may use a different multiplier of that unit (series stack or
-parallel group) to reach its range with the smallest resistor count.
+always on + N switched binary bits) from a SINGLE physical unit resistor
+(UNIT_R). Every element is built from UNIT_R resistors in series/parallel;
+the report shows how many units each element needs.
 
 You only edit the BANKS table below: name, Rmin, Rmax, step [ohm], short.
   - step is the target resistance step at the COARSE end (near Rmax);
@@ -14,8 +15,7 @@ You only edit the BANKS table below: name, Rmin, Rmax, step [ohm], short.
 
 Structure per bank:
   R(code) = 1 / (g_lsb * (N_base + code)),  code = 0 .. 2^N - 1
-  Each leg = the bank's unit (mult x 3k series, or 3k / mult parallel).
-  base = N_base legs (always on); bit i = 2^i legs (one switch).
+  base (always on) has conductance N_base*g_lsb; bit i has 2^i*g_lsb.
 """
 
 import math
@@ -28,6 +28,17 @@ def min_units(R):
     fr = Fraction(R / UNIT_R).limit_denominator(100000)
     return fr.numerator * fr.denominator
 
+
+def build_desc(R):
+    """How to build R from UNIT_R resistors, e.g. '2 series x 3 parallel'."""
+    fr = Fraction(R / UNIT_R).limit_denominator(100000)
+    s, p = fr.numerator, fr.denominator
+    if p == 1:
+        return f"{s} in series" if s > 1 else "1 unit"
+    if s == 1:
+        return f"{p} in parallel"
+    return f"{s} series x {p} parallel"
+
 # =============================================
 # GLOBAL: the one physical unit resistor
 # =============================================
@@ -39,7 +50,7 @@ UNIT_R = 3000.0        # ohm (a bit more is fine; change here)
 BANKS = [
     dict(name="diff",        Rmin=25,  Rmax=100, step=5,  short=False, nom=50),
     dict(name="common_mode", Rmin=10,  Rmax=20,  step=5,  short=True,  nom=10),
-    dict(name="bias",        Rmin=120, Rmax=480, step=40, short=False, nom=240),
+    dict(name="bias",        Rmin=60, Rmax=240, step=40, short=False, nom=120),
 ]
 
 FULL_SWEEP = False      # True -> print every code for every bank
@@ -115,21 +126,14 @@ def report(d):
     if cfg["short"]:
         print(f"  Short switch: yes  (code 'short' -> 0 ohm)")
 
-    # leg / unit description
-    if d["mode"] == "series":
-        leg_desc = f"{d['mult']}x {UNIT_R:.0f} in series = {d['R_leg']:.1f} ohm"
-    else:
-        leg_desc = f"{d['mult']}x {UNIT_R:.0f} in parallel = {d['R_leg']:.1f} ohm"
-    print(f"  Bank unit   : {leg_desc}  ({d['upl']} unit-R per leg)")
-
-    # element table
-    print(f"\n  {'Element':<8} {'Legs':<6} {'Resistance':<14} {'3k units (min)'}")
-    print(f"  {'-'*48}")
-    print(f"  {'base':<8} {d['N_base']:<6d} {d['R_top']:>10.2f} ohm  {min_units(d['R_top']):>6d}  (always on)")
+    # element table: each element built from UNIT_R resistors
+    u = f"{UNIT_R/1000:g}k"
+    print(f"\n  {'Element':<8} {'Resistance':<14} {'Units':<6} {'Build (' + u + ' units)':<26}")
+    print(f"  {'-'*64}")
+    print(f"  {'base':<8} {d['R_top']:>10.2f} ohm {min_units(d['R_top']):>6d} {build_desc(d['R_top']):<26} (always on)")
     for i in range(d["N_bits"]):
-        legs = 2 ** i
-        r = d["R_leg"] / legs
-        print(f"  b{i:<7d} {legs:<6d} {r:>10.2f} ohm  {min_units(r):>6d}  (switch)")
+        r = d["R_leg"] / (2 ** i)
+        print(f"  b{i:<7d} {r:>10.2f} ohm {min_units(r):>6d} {build_desc(r):<26} (switch)")
 
     # key codes
     print(f"\n  {'Code':<10} {'R [ohm]':<12} {'dR [ohm]'}")
@@ -156,7 +160,7 @@ def report(d):
 
     min_total = min_units(d["R_top"]) + sum(
         min_units(d["R_leg"] / (2 ** i)) for i in range(d["N_bits"]))
-    print(f"\n  SIZE: {d['total_legs']} legs, {min_total} unit-R ({UNIT_R:.0f} ohm each, minimal build), {d['switches']} switches")
+    print(f"\n  SIZE: {min_total} units ({UNIT_R:.0f} ohm each), {d['switches']} switches")
     d["min_total"] = min_total
 
 
@@ -169,18 +173,18 @@ def main():
     print(f"\n{'='*64}")
     print(f"  SUMMARY  (unit resistor = {UNIT_R:.0f} ohm)")
     print(f"{'='*64}")
-    print(f"  {'Bank':<14} {'Range [ohm]':<16} {'Nominal (actual)':<22} {'Bits':<6} {'Legs':<6} {'Size [3k units]':<16} {'Switch'}")
-    print(f"  {'-'*88}")
+    print(f"  {'Bank':<14} {'Range [ohm]':<16} {'Nominal (actual)':<22} {'Bits':<6} {'Units':<8} {'Switch'}")
+    print(f"  {'-'*80}")
     tot_units = 0
     tot_sw = 0
     for d in designs:
         rng = f"{d['R_floor']:.0f}-{d['R_top']:.0f}"
         nom = f"{d['R_nom']:.1f} @ code {d['code_nom']}" if d["nom"] else "-"
-        print(f"  {d['cfg']['name']:<14} {rng:<16} {nom:<22} {d['N_bits']:<6d} {d['total_legs']:<6d} {d['min_total']:<16d} {d['switches']}")
+        print(f"  {d['cfg']['name']:<14} {rng:<16} {nom:<22} {d['N_bits']:<6d} {d['min_total']:<8d} {d['switches']}")
         tot_units += d["min_total"]
         tot_sw += d["switches"]
-    print(f"  {'-'*88}")
-    print(f"  {'TOTAL SIZE':<14} {'':<16} {'':<22} {'':<6} {'':<6} {tot_units:<16d} {tot_sw}")
+    print(f"  {'-'*80}")
+    print(f"  {'TOTAL SIZE':<14} {'':<16} {'':<22} {'':<6} {tot_units:<8d} {tot_sw}")
     print(f"\n{'='*64}\n")
 
 
