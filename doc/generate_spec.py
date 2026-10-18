@@ -1,5 +1,5 @@
 """
-Generate DAC CDR Specification Document (.docx)
+Generate DAC CDR Specification Document (.docx) - 8-bit, voltage-mode spec
 
 Creates a full spec template for the HYP Gen1 CDR DAC with:
 - Architecture, Electrical, Interface, Timing, and Test sections
@@ -107,7 +107,7 @@ def generate_spec():
 
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = p.add_run("9-Bit Fully Thermometric Differential Current-Steering DAC")
+    run = p.add_run("8-Bit Fully Thermometric Differential Current-Steering DAC")
     run.font.size = Pt(14)
     run.font.color.rgb = RGBColor(80, 80, 80)
 
@@ -120,7 +120,7 @@ def generate_spec():
     info_table.style = "Table Grid"
     info_data = [
         ("Document Number", "RETYM-HYP-DAC-SPEC-001"),
-        ("Version", "0.1 (Draft)"),
+        ("Version", "0.3 (Draft)"),
         ("Date", date.today().strftime("%Y-%m-%d")),
         ("Author", "[Author Name]"),
         ("Status", "DRAFT"),
@@ -139,7 +139,10 @@ def generate_spec():
     rev_headers = ["Rev", "Date", "Author", "Description"]
     rev_rows = [
         ("0.1", "2025-07-01", "[Author]", "Initial draft – skeleton/template"),
-        ("0.2", date.today().strftime("%Y-%m-%d"), "[Author]", "Updated to 9-bit (511 codes); added INL/DNL formulas (sec 4.2)"),
+        ("0.2", "2026-07-20", "[Author]", "Updated to 9-bit (511 codes); added INL/DNL formulas (sec 4.2)"),
+        ("0.3", date.today().strftime("%Y-%m-%d"), "[Author]",
+         "8-bit (255 units); spec in voltages: 500 mVpp diff FS, VCM 350 mV; "
+         "DNL ±0.3 LSB incl. VCO error; sigma targets filled"),
     ]
     add_table_with_headers(doc, rev_headers, rev_rows)
 
@@ -227,8 +230,9 @@ def generate_spec():
 
     doc.add_heading("3.1 DAC Topology", level=2)
     doc.add_paragraph(
-        "Topology: 9-bit fully thermometric, differential current-steering DAC.\n"
-        "Number of unit elements: N = 2^9 - 1 = 511 unit current sources."
+        "Topology: 8-bit fully thermometric, differential current-steering DAC.\n"
+        "Number of unit elements: N = 2^8 - 1 = 255 unit current sources.\n"
+        "Number of codes: 256 (0 … 255)."
     )
 
     doc.add_heading("3.2 Unit Current Source Design", level=2)
@@ -254,19 +258,19 @@ def generate_spec():
 
     spec_headers = ["Parameter", "Symbol", "Min", "Typ", "Max", "Unit", "Notes"]
     spec_rows = [
-        ("Resolution", "N", "—", "9", "—", "bits", "Thermometric"),
-        ("Number of codes", "—", "—", "511", "—", "—", "2^N - 1"),
-        ("Full-scale current", "I_FS", "", "10.02", "", "mA", "511 × 19.6 µA"),
-        ("LSB current", "I_LSB", "", "19.6", "", "µA", "I_FS / 511"),
-        ("DNL", "DNL", "", "", "±0.5", "LSB", "Target yield TBD"),
+        ("Resolution", "B", "—", "8", "—", "bits", "Fully thermometric"),
+        ("Number of codes", "—", "—", "256", "—", "—", "0 … 255 (255 unit steps)"),
+        ("Full-scale output (diff)", "V_FS", "", "500", "", "mVpp", "Differential peak-to-peak (±250 mV)"),
+        ("LSB voltage (diff)", "V_LSB", "", "1.961", "", "mV", "V_FS / 255"),
+        ("Output common-mode", "V_CM", "", "350", "", "mV", ""),
+        ("DNL", "DNL", "-0.3", "", "+0.3", "LSB", "Including VCO error"),
         ("INL", "INL", "", "", "", "LSB", ""),
-        ("Current source mismatch", "σ(Iu)/Iu", "", "", "", "%", "See matching analysis"),
-        ("Output compliance", "V_comp", "", "", "", "V", ""),
+        ("Unit mismatch", "σ(ΔV_u)/ΔV_u", "", "", "7.3", "%", "99% yield @ |DNL|<0.3 (sec 4.2.4)"),
         ("Supply voltage", "VDD", "", "", "", "V", ""),
         ("Power consumption", "P_DAC", "", "", "", "mW", ""),
         ("Settling time", "t_settle", "", "", "", "ps", "To 0.5 LSB"),
         ("Update rate", "f_update", "", "", "", "GHz", ""),
-        ("Output noise (integrated)", "I_n", "", "", "", "pA_rms", "BW TBD"),
+        ("Output noise (integrated, diff)", "V_n", "", "", "", "µV_rms", "BW TBD"),
         ("PSRR", "PSRR", "", "", "", "dB", "At freq TBD"),
         ("Temperature range", "T", "", "", "", "°C", ""),
     ]
@@ -277,22 +281,23 @@ def generate_spec():
 
     doc.add_paragraph(
         "For a fully thermometric differential current-steering DAC with N = 2^B - 1 "
-        "unit current sources (B = 9, N = 511):"
+        "unit elements (B = 8, N = 255). All quantities are differential output "
+        "voltages: V_diff = V_outp - V_outn, V_FS = 500 mVpp, V_LSB = V_FS / 255 ≈ 1.961 mV."
     )
 
     doc.add_heading("4.2.1 DNL (Differential Non-Linearity)", level=3)
     doc.add_paragraph(
         "DNL measures the deviation of each code step from the ideal 1-LSB step size.\n\n"
         "Definition (endpoint-fitted):\n\n"
-        "    DNL(k) = [V_out(k+1) - V_out(k)] / LSB_actual  -  1\n\n"
+        "    DNL(k) = [V_diff(k+1) - V_diff(k)] / V_LSB_actual  -  1\n\n"
         "where:\n"
-        "    LSB_actual = [V_out(N) - V_out(0)] / N\n\n"
+        "    V_LSB_actual = [V_diff(N) - V_diff(0)] / N\n\n"
         "For a fully thermometric DAC, each code transition activates exactly one unit "
-        "current source. Therefore:\n\n"
-        "    DNL(k) = [I_unit(k) - I_avg] / I_avg\n\n"
-        "where I_unit(k) is the current of the k-th unit source and I_avg is the mean "
-        "of all N unit sources.\n\n"
-        "Specification: |DNL| < 0.5 LSB (guarantees monotonicity)"
+        "element. Therefore:\n\n"
+        "    DNL(k) = [ΔV_u(k) - ΔV_avg] / ΔV_avg\n\n"
+        "where ΔV_u(k) is the differential output step of the k-th unit element and "
+        "ΔV_avg is the mean step of all N units.\n\n"
+        "Specification: |DNL| < 0.3 LSB, including VCO error (guarantees monotonicity)"
     )
 
     doc.add_heading("4.2.2 INL (Integral Non-Linearity)", level=3)
@@ -300,12 +305,9 @@ def generate_spec():
         "INL measures the cumulative deviation of the transfer function from the ideal "
         "straight line.\n\n"
         "Definition (endpoint-fitted):\n\n"
-        "    INL(k) = [V_out(k) - V_out(0)] / LSB_actual  -  k\n\n"
+        "    INL(k) = [V_diff(k) - V_diff(0)] / V_LSB_actual  -  k\n\n"
         "Equivalently, INL is the cumulative sum of DNL:\n\n"
-        "    INL(k) = Σ_{i=0}^{k-1} DNL(i)\n\n"
-        "For a differential DAC with output V_diff = I_diff × R_L:\n\n"
-        "    INL(k) = [V_diff(k) - V_diff(0)] / LSB_actual  -  k\n"
-        "    LSB_actual = [V_diff(N) - V_diff(0)] / N"
+        "    INL(k) = Σ_{i=0}^{k-1} DNL(i)"
     )
 
     doc.add_heading("4.2.3 Differential DAC: Finite Rout Effect", level=3)
@@ -327,28 +329,30 @@ def generate_spec():
         "where Φ is the standard normal CDF.\n\n"
         "Solving for required σ_rel at a given yield target Y:\n\n"
         "    σ_rel = DNL_target / Φ⁻¹[(1 + Y^(1/N)) / 2]\n\n"
-        "For N = 511, |DNL| < 0.5 LSB:\n"
-        "  • 90% yield → σ_rel ≤ TBD %\n"
-        "  • 95% yield → σ_rel ≤ TBD %\n"
-        "  • 99% yield → σ_rel ≤ TBD %\n"
-        "  • 3σ (99.7%) yield → σ_rel ≤ TBD %"
+        "For N = 255, |DNL| < 0.3 LSB:\n"
+        "  • 90% yield → σ_rel ≤ 8.50 %\n"
+        "  • 95% yield → σ_rel ≤ 8.07 %\n"
+        "  • 99% yield → σ_rel ≤ 7.30 %\n"
+        "  • 3σ (99.7%) yield → σ_rel ≤ 6.85 %\n\n"
+        "Note: these assume the whole 0.3 LSB budget goes to DAC mismatch. "
+        "The VCO error share must be subtracted once known."
     )
 
     # ----- 4.3 Matching Requirements -----
     doc.add_heading("4.3 Matching Requirements", level=2)
     doc.add_paragraph(
         "Based on Monte Carlo analysis (see dac_sigma_vs_dnl.py):\n\n"
-        "For |DNL| < 0.5 LSB with 511 unit elements:\n"
-        "  • 90% yield → σ_rel ≤ TBD %\n"
-        "  • 95% yield → σ_rel ≤ TBD %\n"
-        "  • 99% yield → σ_rel ≤ TBD %\n"
-        "  • 99.7% yield → σ_rel ≤ TBD %"
+        "For |DNL| < 0.3 LSB with 255 unit elements:\n"
+        "  • 90% yield → σ_rel ≤ 8.50 %\n"
+        "  • 95% yield → σ_rel ≤ 8.07 %\n"
+        "  • 99% yield → σ_rel ≤ 7.30 %\n"
+        "  • 99.7% yield → σ_rel ≤ 6.85 %"
     )
 
-    doc.add_heading("4.3 Noise Budget", level=2)
+    doc.add_heading("4.4 Noise Budget", level=2)
     doc.add_paragraph("[Define noise contributors: thermal, flicker, supply, reference.]")
 
-    doc.add_heading("4.4 Power Budget", level=2)
+    doc.add_heading("4.5 Power Budget", level=2)
     doc.add_paragraph("[Breakdown of power by sub-block.]")
 
     doc.add_page_break()
@@ -362,7 +366,7 @@ def generate_spec():
     doc.add_paragraph(
         "[Define interface: async pulse (UP/DN), synchronous parallel, or hybrid.\n"
         "Reference system_questions.md Q1–Q9 for open decisions.]\n\n"
-        "CODE[8:0]: 9-bit thermometer state (511 codes)"
+        "CODE[7:0]: 8-bit code (256 codes, 0 … 255)"
     )
 
     doc.add_heading("5.2 Signal List", level=2)
@@ -371,7 +375,7 @@ def generate_spec():
         ("UP", "Input", "1", "Increment DAC code by 1 LSB"),
         ("DN", "Input", "1", "Decrement DAC code by 1 LSB"),
         ("RESET_N", "Input", "1", "Active-low async reset to initial code"),
-        ("CODE[8:0]", "Output/Internal", "9", "Current DAC thermometer code (optional readback)"),
+        ("CODE[7:0]", "Output/Internal", "8", "Current DAC code (optional readback)"),
         ("SAT_HI", "Output", "1", "Saturation flag – code at maximum"),
         ("SAT_LO", "Output", "1", "Saturation flag – code at minimum"),
     ]
@@ -387,13 +391,13 @@ def generate_spec():
 
     doc.add_heading("5.4 Reset & Power-Up Behavior", level=2)
     doc.add_paragraph(
-        "[Define initial DAC code after reset: mid-code (64), min (0), or programmable.\n"
+        "[Define initial DAC code after reset: mid-code (128), min (0), or programmable.\n"
         "Reference system_questions.md Q4.]"
     )
 
     doc.add_heading("5.5 Saturation Handling", level=2)
     doc.add_paragraph(
-        "[Define behavior at code 0 and 127: clip, flag, or both.\n"
+        "[Define behavior at code 0 and 255: clip, flag, or both.\n"
         "Reference system_questions.md Q5.]"
     )
 
@@ -413,10 +417,10 @@ def generate_spec():
     doc.add_heading("6.1 Latency Budget", level=2)
     timing_headers = ["Path", "Latency", "Unit", "Notes"]
     timing_rows = [
-        ("UP/DN pulse to current change", "", "ps", "Interface + decoder + switch"),
+        ("UP/DN pulse to output voltage change", "", "ps", "Interface + decoder + switch"),
         ("Reset to mid-code settled", "", "ns", ""),
         ("Code-to-code settling (1 LSB)", "", "ps", ""),
-        ("Full-scale settling (0 → 127)", "", "ns", ""),
+        ("Full-scale settling (0 → 255)", "", "ns", ""),
     ]
     add_table_with_headers(doc, timing_headers, timing_rows)
 
@@ -455,9 +459,10 @@ def generate_spec():
     doc.add_heading("8.1 Production Tests", level=2)
     test_headers = ["Test", "Method", "Spec Limit", "Notes"]
     test_rows = [
-        ("DNL", "Code-by-code ramp", "< 0.5 LSB", ""),
+        ("DNL", "Code-by-code ramp", "< ±0.3 LSB", "Including VCO error"),
         ("INL", "Cumulative DNL", "TBD", ""),
-        ("Full-scale current", "Force code 511, measure I_out", "TBD", ""),
+        ("Full-scale voltage", "Codes 0 and 255, measure V_diff", "500 mVpp diff", ""),
+        ("Common-mode voltage", "Mid-code, measure V_CM", "350 mV", ""),
         ("Power consumption", "Measure supply current", "TBD", ""),
         ("Monotonicity", "Verify no code reversal (DNL > -1)", "Pass/Fail", ""),
     ]
