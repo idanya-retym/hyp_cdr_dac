@@ -120,7 +120,7 @@ def generate_spec():
     info_table.style = "Table Grid"
     info_data = [
         ("Document Number", "RETYM-HYP-DAC-SPEC-001"),
-        ("Version", "0.4 (Draft)"),
+        ("Version", "0.5 (Draft)"),
         ("Date", date.today().strftime("%Y-%m-%d")),
         ("Author", "[Author Name]"),
         ("Status", "DRAFT"),
@@ -143,9 +143,12 @@ def generate_spec():
         ("0.3", "2026-10-18", "[Author]",
          "8-bit (255 units); spec in voltages: 500 mVpp diff FS, VCM 350 mV; "
          "DNL ±0.3 LSB incl. VCO error; sigma targets filled"),
-        ("0.4", date.today().strftime("%Y-%m-%d"), "[Author]",
+        ("0.4", "2026-10-18", "[Author]",
          "Removed mismatch targets; added R_L, CM tol, gain error, 2 supplies, "
          "power split, settling (2τ), update rate, glitch, temp, C_L, VCO DNL share"),
+        ("0.5", date.today().strftime("%Y-%m-%d"), "[Author]",
+         "FS = 1 Vpp diff (LSB 3.922 mV); internal currents I_FS 10 mA / I_LSB 39.2 µA; "
+         "update-rate and glitch explanations in notes"),
     ]
     add_table_with_headers(doc, rev_headers, rev_rows)
 
@@ -263,10 +266,12 @@ def generate_spec():
     spec_rows = [
         ("Resolution", "B", "—", "8", "—", "bits", "Fully thermometric"),
         ("Number of codes", "—", "—", "256", "—", "—", "0 … 255 (255 unit steps)"),
-        ("Full-scale output (diff)", "V_FS", "", "500", "", "mVpp", "Differential peak-to-peak (±250 mV)"),
-        ("LSB voltage (diff)", "V_LSB", "", "1.961", "", "mV", "V_FS / 255"),
+        ("Full-scale output (diff)", "V_FS", "", "1000", "", "mVpp", "Differential peak-to-peak (±500 mV)"),
+        ("LSB voltage (diff)", "V_LSB", "", "3.922", "", "mV", "V_FS / 255"),
         ("Output common-mode", "V_CM", "332.5", "350", "367.5", "mV", "±5% – self spec"),
-        ("Load resistance", "R_L", "", "50", "", "Ω", "Per side → I_FS = V_FS/(2·R_L) = 5 mA, I_LSB ≈ 19.6 µA"),
+        ("Load resistance", "R_L", "", "50", "", "Ω", "Per side"),
+        ("Full-scale current", "I_FS", "", "10", "", "mA", "Internal spec; V_FS = 2·I_FS·R_L"),
+        ("LSB (unit) current", "I_LSB", "", "39.2", "", "µA", "Internal spec; I_FS / 255"),
         ("Full-scale (gain) error", "GE", "-5", "", "+5", "%", "Self spec"),
         ("DNL", "DNL", "-0.3", "", "+0.3", "LSB", "Including VCO error"),
         ("DNL budget – VCO share", "DNL_VCO", "", "TBD", "", "LSB", "OPEN – part of the ±0.3 LSB, not known yet"),
@@ -278,11 +283,17 @@ def generate_spec():
         ("Settling time (1 LSB)", "t_set_LSB", "", "TBD", "", "ps", "To 2τ = 86.5% of final value"),
         ("Settling time (full scale)", "t_set_FS", "", "TBD", "", "ns", "To 2τ = 86.5% of final value"),
         ("Update rate (UP/DN)", "f_update", "", "TBD", "", "GHz",
-         "Fully thermometric: each UP/DN moves 1 unit = 1 LSB; no decoder. "
-         "Max rate = 1 / (switch delay + 1-LSB settling). See 6.2"),
+         "How often the code can change. The DAC is fully thermometric: every UP/DN "
+         "pulse turns exactly one unit on or off, so the output always moves by exactly "
+         "1 LSB. There is no binary-to-thermometer decoder, so no decode delay and no "
+         "multi-bit switching. Max rate = 1 / (UP/DN-to-switch delay + 1-LSB settling "
+         "to 2τ). A faster pulse arrives before the previous step has settled."),
         ("Glitch (1-LSB step)", "G", "", "TBD", "", "mV·ps",
-         "Area of output error during a code step; 1 unit switches, "
-         "so glitch is small and same for all codes. See 6.3"),
+         "Glitch energy = area (mV × ps) of the output error spike during a code step, "
+         "caused by switch timing skew and clock/charge feed-through. In a binary DAC the "
+         "worst glitch is at mid-code (many bits switch at once). Here only one unit "
+         "switches per step, so the glitch is small and the same for every code. "
+         "Measured on V_diff."),
         ("Output noise (integrated, diff)", "V_n", "", "TBD", "", "µV_rms", "Table to be provided"),
         ("PSRR", "PSRR", "", "TBD", "", "dB", "Report only"),
         ("Load capacitance", "C_L", "", "TBD", "", "fF", "VCO input – to be completed"),
@@ -296,7 +307,7 @@ def generate_spec():
     doc.add_paragraph(
         "For a fully thermometric differential current-steering DAC with N = 2^B - 1 "
         "unit elements (B = 8, N = 255). All quantities are differential output "
-        "voltages: V_diff = V_outp - V_outn, V_FS = 500 mVpp, V_LSB = V_FS / 255 ≈ 1.961 mV."
+        "voltages: V_diff = V_outp - V_outn, V_FS = 1000 mVpp, V_LSB = V_FS / 255 ≈ 3.922 mV."
     )
 
     doc.add_heading("4.2.1 DNL (Differential Non-Linearity)", level=3)
@@ -470,7 +481,7 @@ def generate_spec():
     test_rows = [
         ("DNL", "Code-by-code ramp", "< ±0.3 LSB", "Including VCO error"),
         ("INL", "Cumulative DNL", "Report only", ""),
-        ("Full-scale voltage", "Codes 0 and 255, measure V_diff", "500 mVpp diff ±5%", "Self spec"),
+        ("Full-scale voltage", "Codes 0 and 255, measure V_diff", "1000 mVpp diff ±5%", "Self spec"),
         ("Common-mode voltage", "Mid-code, measure V_CM", "350 mV ±5%", "Self spec"),
         ("Power consumption", "Measure supply current", "TBD", ""),
         ("Monotonicity", "Verify no code reversal (DNL > -1)", "Pass/Fail", ""),
