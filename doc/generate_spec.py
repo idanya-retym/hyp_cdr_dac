@@ -120,7 +120,7 @@ def generate_spec():
     info_table.style = "Table Grid"
     info_data = [
         ("Document Number", "RETYM-HYP-DAC-SPEC-001"),
-        ("Version", "0.3 (Draft)"),
+        ("Version", "0.4 (Draft)"),
         ("Date", date.today().strftime("%Y-%m-%d")),
         ("Author", "[Author Name]"),
         ("Status", "DRAFT"),
@@ -140,9 +140,12 @@ def generate_spec():
     rev_rows = [
         ("0.1", "2025-07-01", "[Author]", "Initial draft – skeleton/template"),
         ("0.2", "2026-07-20", "[Author]", "Updated to 9-bit (511 codes); added INL/DNL formulas (sec 4.2)"),
-        ("0.3", date.today().strftime("%Y-%m-%d"), "[Author]",
+        ("0.3", "2026-10-18", "[Author]",
          "8-bit (255 units); spec in voltages: 500 mVpp diff FS, VCM 350 mV; "
          "DNL ±0.3 LSB incl. VCO error; sigma targets filled"),
+        ("0.4", date.today().strftime("%Y-%m-%d"), "[Author]",
+         "Removed mismatch targets; added R_L, CM tol, gain error, 2 supplies, "
+         "power split, settling (2τ), update rate, glitch, temp, C_L, VCO DNL share"),
     ]
     add_table_with_headers(doc, rev_headers, rev_rows)
 
@@ -262,17 +265,28 @@ def generate_spec():
         ("Number of codes", "—", "—", "256", "—", "—", "0 … 255 (255 unit steps)"),
         ("Full-scale output (diff)", "V_FS", "", "500", "", "mVpp", "Differential peak-to-peak (±250 mV)"),
         ("LSB voltage (diff)", "V_LSB", "", "1.961", "", "mV", "V_FS / 255"),
-        ("Output common-mode", "V_CM", "", "350", "", "mV", ""),
+        ("Output common-mode", "V_CM", "332.5", "350", "367.5", "mV", "±5% – self spec"),
+        ("Load resistance", "R_L", "", "50", "", "Ω", "Per side → I_FS = V_FS/(2·R_L) = 5 mA, I_LSB ≈ 19.6 µA"),
+        ("Full-scale (gain) error", "GE", "-5", "", "+5", "%", "Self spec"),
         ("DNL", "DNL", "-0.3", "", "+0.3", "LSB", "Including VCO error"),
-        ("INL", "INL", "", "", "", "LSB", ""),
-        ("Unit mismatch", "σ(ΔV_u)/ΔV_u", "", "", "7.3", "%", "99% yield @ |DNL|<0.3 (sec 4.2.4)"),
-        ("Supply voltage", "VDD", "", "", "", "V", ""),
-        ("Power consumption", "P_DAC", "", "", "", "mW", ""),
-        ("Settling time", "t_settle", "", "", "", "ps", "To 0.5 LSB"),
-        ("Update rate", "f_update", "", "", "", "GHz", ""),
-        ("Output noise (integrated, diff)", "V_n", "", "", "", "µV_rms", "BW TBD"),
-        ("PSRR", "PSRR", "", "", "", "dB", "At freq TBD"),
-        ("Temperature range", "T", "", "", "", "°C", ""),
+        ("DNL budget – VCO share", "DNL_VCO", "", "TBD", "", "LSB", "OPEN – part of the ±0.3 LSB, not known yet"),
+        ("INL", "INL", "", "TBD", "", "LSB", "Report only"),
+        ("Supply voltage (high)", "VDD_1V2", "1.14", "1.20", "1.26", "V", ""),
+        ("Supply voltage (low)", "VDD_0V9", "0.85", "0.90", "0.95", "V", ""),
+        ("Power – 1.2 V supply", "P_1V2", "", "TBD", "", "mW", ""),
+        ("Power – 0.9 V supply", "P_0V9", "", "TBD", "", "mW", ""),
+        ("Settling time (1 LSB)", "t_set_LSB", "", "TBD", "", "ps", "To 2τ = 86.5% of final value"),
+        ("Settling time (full scale)", "t_set_FS", "", "TBD", "", "ns", "To 2τ = 86.5% of final value"),
+        ("Update rate (UP/DN)", "f_update", "", "TBD", "", "GHz",
+         "Fully thermometric: each UP/DN moves 1 unit = 1 LSB; no decoder. "
+         "Max rate = 1 / (switch delay + 1-LSB settling). See 6.2"),
+        ("Glitch (1-LSB step)", "G", "", "TBD", "", "mV·ps",
+         "Area of output error during a code step; 1 unit switches, "
+         "so glitch is small and same for all codes. See 6.3"),
+        ("Output noise (integrated, diff)", "V_n", "", "TBD", "", "µV_rms", "Table to be provided"),
+        ("PSRR", "PSRR", "", "TBD", "", "dB", "Report only"),
+        ("Load capacitance", "C_L", "", "TBD", "", "fF", "VCO input – to be completed"),
+        ("Temperature", "T", "-10", "50 / 85", "110", "°C", "Typ: 50 and 85 (most likely both)"),
     ]
     add_table_with_headers(doc, spec_headers, spec_rows)
 
@@ -328,32 +342,14 @@ def generate_spec():
         "    Yield = [2·Φ(DNL_target / σ_rel) - 1]^N\n\n"
         "where Φ is the standard normal CDF.\n\n"
         "Solving for required σ_rel at a given yield target Y:\n\n"
-        "    σ_rel = DNL_target / Φ⁻¹[(1 + Y^(1/N)) / 2]\n\n"
-        "For N = 255, |DNL| < 0.3 LSB:\n"
-        "  • 90% yield → σ_rel ≤ 8.50 %\n"
-        "  • 95% yield → σ_rel ≤ 8.07 %\n"
-        "  • 99% yield → σ_rel ≤ 7.30 %\n"
-        "  • 3σ (99.7%) yield → σ_rel ≤ 6.85 %\n\n"
-        "Note: these assume the whole 0.3 LSB budget goes to DAC mismatch. "
-        "The VCO error share must be subtracted once known."
+        "    σ_rel = DNL_target / Φ⁻¹[(1 + Y^(1/N)) / 2]"
     )
 
-    # ----- 4.3 Matching Requirements -----
-    doc.add_heading("4.3 Matching Requirements", level=2)
-    doc.add_paragraph(
-        "Based on Monte Carlo analysis (see dac_sigma_vs_dnl.py):\n\n"
-        "For |DNL| < 0.3 LSB with 255 unit elements:\n"
-        "  • 90% yield → σ_rel ≤ 8.50 %\n"
-        "  • 95% yield → σ_rel ≤ 8.07 %\n"
-        "  • 99% yield → σ_rel ≤ 7.30 %\n"
-        "  • 99.7% yield → σ_rel ≤ 6.85 %"
-    )
-
-    doc.add_heading("4.4 Noise Budget", level=2)
+    doc.add_heading("4.3 Noise Budget", level=2)
     doc.add_paragraph("[Define noise contributors: thermal, flicker, supply, reference.]")
 
-    doc.add_heading("4.5 Power Budget", level=2)
-    doc.add_paragraph("[Breakdown of power by sub-block.]")
+    doc.add_heading("4.4 Power Budget", level=2)
+    doc.add_paragraph("[Breakdown of power per supply (1.2 V / 0.9 V) and per sub-block.]")
 
     doc.add_page_break()
 
@@ -419,16 +415,29 @@ def generate_spec():
     timing_rows = [
         ("UP/DN pulse to output voltage change", "", "ps", "Interface + decoder + switch"),
         ("Reset to mid-code settled", "", "ns", ""),
-        ("Code-to-code settling (1 LSB)", "", "ps", ""),
-        ("Full-scale settling (0 → 255)", "", "ns", ""),
+        ("Code-to-code settling (1 LSB)", "", "ps", "To 2τ (86.5%)"),
+        ("Full-scale settling (0 → 255)", "", "ns", "To 2τ (86.5%)"),
     ]
     add_table_with_headers(doc, timing_headers, timing_rows)
 
     doc.add_heading("6.2 Update Rate", level=2)
-    doc.add_paragraph("[Maximum pulse rate / clock frequency for code updates.]")
+    doc.add_paragraph(
+        "The DAC is fully thermometric: every UP/DN pulse turns exactly one unit element "
+        "on or off, so the output always moves by exactly 1 LSB. There is no binary-to-"
+        "thermometer decoder, so no decode delay and no multi-bit switching.\n\n"
+        "Max update rate = 1 / (UP/DN-to-switch delay + 1-LSB settling to 2τ).\n"
+        "Value: TBD."
+    )
 
     doc.add_heading("6.3 Glitch Energy", level=2)
-    doc.add_paragraph("[Max allowable glitch at code transitions, in LSB·ps or pV·s.]")
+    doc.add_paragraph(
+        "Glitch energy = area (mV·ps) of the output error spike during a code step, "
+        "caused by switch timing skew and clock/charge feed-through.\n\n"
+        "In a binary DAC the worst glitch is at mid-code (many bits switch at once). "
+        "In this fully thermometric DAC only one unit switches per step, so the glitch "
+        "is small and the same for every code.\n"
+        "Value: TBD (1-LSB step, differential)."
+    )
 
     doc.add_page_break()
 
@@ -460,9 +469,9 @@ def generate_spec():
     test_headers = ["Test", "Method", "Spec Limit", "Notes"]
     test_rows = [
         ("DNL", "Code-by-code ramp", "< ±0.3 LSB", "Including VCO error"),
-        ("INL", "Cumulative DNL", "TBD", ""),
-        ("Full-scale voltage", "Codes 0 and 255, measure V_diff", "500 mVpp diff", ""),
-        ("Common-mode voltage", "Mid-code, measure V_CM", "350 mV", ""),
+        ("INL", "Cumulative DNL", "Report only", ""),
+        ("Full-scale voltage", "Codes 0 and 255, measure V_diff", "500 mVpp diff ±5%", "Self spec"),
+        ("Common-mode voltage", "Mid-code, measure V_CM", "350 mV ±5%", "Self spec"),
         ("Power consumption", "Measure supply current", "TBD", ""),
         ("Monotonicity", "Verify no code reversal (DNL > -1)", "Pass/Fail", ""),
     ]
@@ -471,8 +480,8 @@ def generate_spec():
     doc.add_heading("8.2 Characterization Tests", level=2)
     char_headers = ["Test", "Conditions", "Purpose"]
     char_rows = [
-        ("DNL vs. temperature", "–40°C to 125°C", "Verify matching over temp"),
-        ("DNL vs. supply", "VDD ± 10%", "PSRR impact on linearity"),
+        ("DNL vs. temperature", "–10°C to 110°C", "Verify matching over temp"),
+        ("DNL vs. supply", "1.14–1.26 V and 0.85–0.95 V", "Supply impact on linearity"),
         ("Settling time", "1 LSB and full-scale step", "Verify timing spec"),
         ("Noise spectral density", "Mid-code, measure output", "Verify noise budget"),
         ("Glitch energy", "Mid-code transition", "Verify glitch spec"),
@@ -503,7 +512,10 @@ def generate_spec():
         ("6", "UP/DN mutual exclusivity guaranteed?", "", "Open"),
         ("7", "Code readback needed?", "", "Open"),
         ("8", "Clock domain relationship?", "", "Open"),
-        ("9", "Supply / IO voltage levels?", "", "Open"),
+        ("9", "Supply / IO voltage levels?", "", "Closed – 1.2 V and 0.9 V"),
+        ("10", "VCO share of the ±0.3 LSB DNL budget?", "", "Open"),
+        ("11", "VCO input load capacitance (C_L)?", "", "Open"),
+        ("12", "Output noise table", "", "Open"),
     ]
     add_table_with_headers(doc, open_headers, open_rows)
 
