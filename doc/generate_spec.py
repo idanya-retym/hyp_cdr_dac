@@ -120,7 +120,7 @@ def generate_spec():
     info_table.style = "Table Grid"
     info_data = [
         ("Document Number", "RETYM-HYP-DAC-SPEC-001"),
-        ("Version", "0.5 (Draft)"),
+        ("Version", "0.6 (Draft)"),
         ("Date", date.today().strftime("%Y-%m-%d")),
         ("Author", "[Author Name]"),
         ("Status", "DRAFT"),
@@ -146,9 +146,11 @@ def generate_spec():
         ("0.4", "2026-10-18", "[Author]",
          "Removed mismatch targets; added R_L, CM tol, gain error, 2 supplies, "
          "power split, settling (2τ), update rate, glitch, temp, C_L, VCO DNL share"),
-        ("0.5", date.today().strftime("%Y-%m-%d"), "[Author]",
+        ("0.5", "2026-10-18", "[Author]",
          "FS = 1 Vpp diff (LSB 3.922 mV); internal currents I_FS 10 mA / I_LSB 39.2 µA; "
          "update-rate and glitch explanations in notes"),
+        ("0.6", date.today().strftime("%Y-%m-%d"), "[Author]",
+         "Spec table split into Definitions (4.1) and Results (4.2); R_L ±20%"),
     ]
     add_table_with_headers(doc, rev_headers, rev_rows)
 
@@ -260,24 +262,35 @@ def generate_spec():
     # =========================================================================
     doc.add_heading("4. Electrical Specifications", level=1)
 
-    doc.add_heading("4.1 Key Performance Parameters", level=2)
-
     spec_headers = ["Parameter", "Symbol", "Min", "Typ", "Max", "Unit", "Notes"]
-    spec_rows = [
+
+    # ----- 4.1 Definitions: given conditions / design inputs -----
+    doc.add_heading("4.1 Definitions (Operating Conditions)", level=2)
+    doc.add_paragraph("Given conditions and design inputs the DAC must work with.")
+    def_rows = [
         ("Resolution", "B", "—", "8", "—", "bits", "Fully thermometric"),
         ("Number of codes", "—", "—", "256", "—", "—", "0 … 255 (255 unit steps)"),
+        ("Supply voltage (high)", "VDD_1V2", "1.14", "1.20", "1.26", "V", ""),
+        ("Supply voltage (low)", "VDD_0V9", "0.85", "0.90", "0.95", "V", ""),
+        ("Temperature", "T", "-10", "50 / 85", "110", "°C", "Typ: 50 and 85 (most likely both)"),
+        ("Load resistance", "R_L", "40", "50", "60", "Ω", "Per side; ±20% variation"),
+        ("Load capacitance", "C_L", "", "TBD", "", "fF", "VCO input – to be completed"),
+        ("Full-scale current", "I_FS", "", "10", "", "mA", "Internal spec; V_FS = 2·I_FS·R_L"),
+        ("LSB (unit) current", "I_LSB", "", "39.2", "", "µA", "Internal spec; I_FS / 255"),
+    ]
+    add_table_with_headers(doc, spec_headers, def_rows)
+
+    # ----- 4.2 Results: required / measured performance -----
+    doc.add_heading("4.2 Results (Performance)", level=2)
+    doc.add_paragraph("Performance the DAC must meet, or report, under the conditions in 4.1.")
+    spec_rows = [
         ("Full-scale output (diff)", "V_FS", "", "1000", "", "mVpp", "Differential peak-to-peak (±500 mV)"),
         ("LSB voltage (diff)", "V_LSB", "", "3.922", "", "mV", "V_FS / 255"),
         ("Output common-mode", "V_CM", "332.5", "350", "367.5", "mV", "±5% – self spec"),
-        ("Load resistance", "R_L", "", "50", "", "Ω", "Per side"),
-        ("Full-scale current", "I_FS", "", "10", "", "mA", "Internal spec; V_FS = 2·I_FS·R_L"),
-        ("LSB (unit) current", "I_LSB", "", "39.2", "", "µA", "Internal spec; I_FS / 255"),
         ("Full-scale (gain) error", "GE", "-5", "", "+5", "%", "Self spec"),
         ("DNL", "DNL", "-0.3", "", "+0.3", "LSB", "Including VCO error"),
         ("DNL budget – VCO share", "DNL_VCO", "", "TBD", "", "LSB", "OPEN – part of the ±0.3 LSB, not known yet"),
         ("INL", "INL", "", "TBD", "", "LSB", "Report only"),
-        ("Supply voltage (high)", "VDD_1V2", "1.14", "1.20", "1.26", "V", ""),
-        ("Supply voltage (low)", "VDD_0V9", "0.85", "0.90", "0.95", "V", ""),
         ("Power – 1.2 V supply", "P_1V2", "", "TBD", "", "mW", ""),
         ("Power – 0.9 V supply", "P_0V9", "", "TBD", "", "mW", ""),
         ("Settling time (1 LSB)", "t_set_LSB", "", "TBD", "", "ps", "To 2τ = 86.5% of final value"),
@@ -296,13 +309,11 @@ def generate_spec():
          "Measured on V_diff."),
         ("Output noise (integrated, diff)", "V_n", "", "TBD", "", "µV_rms", "Table to be provided"),
         ("PSRR", "PSRR", "", "TBD", "", "dB", "Report only"),
-        ("Load capacitance", "C_L", "", "TBD", "", "fF", "VCO input – to be completed"),
-        ("Temperature", "T", "-10", "50 / 85", "110", "°C", "Typ: 50 and 85 (most likely both)"),
     ]
     add_table_with_headers(doc, spec_headers, spec_rows)
 
-    # ----- 4.2 INL and DNL Definitions -----
-    doc.add_heading("4.2 INL and DNL Definitions", level=2)
+    # ----- 4.3 INL and DNL Definitions -----
+    doc.add_heading("4.3 INL and DNL Definitions", level=2)
 
     doc.add_paragraph(
         "For a fully thermometric differential current-steering DAC with N = 2^B - 1 "
@@ -310,7 +321,7 @@ def generate_spec():
         "voltages: V_diff = V_outp - V_outn, V_FS = 1000 mVpp, V_LSB = V_FS / 255 ≈ 3.922 mV."
     )
 
-    doc.add_heading("4.2.1 DNL (Differential Non-Linearity)", level=3)
+    doc.add_heading("4.3.1 DNL (Differential Non-Linearity)", level=3)
     doc.add_paragraph(
         "DNL measures the deviation of each code step from the ideal 1-LSB step size.\n\n"
         "Definition (endpoint-fitted):\n\n"
@@ -325,7 +336,7 @@ def generate_spec():
         "Specification: |DNL| < 0.3 LSB, including VCO error (guarantees monotonicity)"
     )
 
-    doc.add_heading("4.2.2 INL (Integral Non-Linearity)", level=3)
+    doc.add_heading("4.3.2 INL (Integral Non-Linearity)", level=3)
     doc.add_paragraph(
         "INL measures the cumulative deviation of the transfer function from the ideal "
         "straight line.\n\n"
@@ -335,7 +346,7 @@ def generate_spec():
         "    INL(k) = Σ_{i=0}^{k-1} DNL(i)"
     )
 
-    doc.add_heading("4.2.3 Differential DAC: Finite Rout Effect", level=3)
+    doc.add_heading("4.3.3 Differential DAC: Finite Rout Effect", level=3)
     doc.add_paragraph(
         "For a differential current-steering DAC, the first-order finite-Rout effect "
         "cancels between the two output branches, producing only a gain error (no INL):\n\n"
@@ -346,7 +357,7 @@ def generate_spec():
         "swing."
     )
 
-    doc.add_heading("4.2.4 Mismatch-Limited DNL (Statistical)", level=3)
+    doc.add_heading("4.3.4 Mismatch-Limited DNL (Statistical)", level=3)
     doc.add_paragraph(
         "Given relative mismatch σ_rel = σ(I_unit)/I_unit, the probability that ALL "
         "N codes meet |DNL| < DNL_target:\n\n"
@@ -356,10 +367,10 @@ def generate_spec():
         "    σ_rel = DNL_target / Φ⁻¹[(1 + Y^(1/N)) / 2]"
     )
 
-    doc.add_heading("4.3 Noise Budget", level=2)
+    doc.add_heading("4.4 Noise Budget", level=2)
     doc.add_paragraph("[Define noise contributors: thermal, flicker, supply, reference.]")
 
-    doc.add_heading("4.4 Power Budget", level=2)
+    doc.add_heading("4.5 Power Budget", level=2)
     doc.add_paragraph("[Breakdown of power per supply (1.2 V / 0.9 V) and per sub-block.]")
 
     doc.add_page_break()
