@@ -120,7 +120,7 @@ def generate_spec():
     info_table.style = "Table Grid"
     info_data = [
         ("Document Number", "RETYM-HYP-DAC-SPEC-001"),
-        ("Version", "0.6 (Draft)"),
+        ("Version", "0.7 (Draft)"),
         ("Date", date.today().strftime("%Y-%m-%d")),
         ("Author", "[Author Name]"),
         ("Status", "DRAFT"),
@@ -149,8 +149,11 @@ def generate_spec():
         ("0.5", "2026-10-18", "[Author]",
          "FS = 1 Vpp diff (LSB 3.922 mV); internal currents I_FS 10 mA / I_LSB 39.2 µA; "
          "update-rate and glitch explanations in notes"),
-        ("0.6", date.today().strftime("%Y-%m-%d"), "[Author]",
+        ("0.6", "2026-10-19", "[Author]",
          "Spec table split into Definitions (4.1) and Results (4.2); R_L ±20%"),
+        ("0.7", date.today().strftime("%Y-%m-%d"), "[Author]",
+         "256 units (4 sub-sources each), 257 levels, LSB 3.906 mV; V_FS ±5%; removed "
+         "I_FS/I_LSB, gain error, full-scale settling; added input clock 1 GHz max"),
     ]
     add_table_with_headers(doc, rev_headers, rev_rows)
 
@@ -239,8 +242,8 @@ def generate_spec():
     doc.add_heading("3.1 DAC Topology", level=2)
     doc.add_paragraph(
         "Topology: 8-bit fully thermometric, differential current-steering DAC.\n"
-        "Number of unit elements: N = 2^8 - 1 = 255 unit current sources.\n"
-        "Number of codes: 256 (0 … 255)."
+        "Number of unit elements: N = 256 unit current sources (each unit = 4 sub-sources).\n"
+        "Number of levels: 257 (code 0 … 256)."
     )
 
     doc.add_heading("3.2 Unit Current Source Design", level=2)
@@ -269,14 +272,14 @@ def generate_spec():
     doc.add_paragraph("Given conditions and design inputs the DAC must work with.")
     def_rows = [
         ("Resolution", "B", "—", "8", "—", "bits", "Fully thermometric"),
-        ("Number of codes", "—", "—", "256", "—", "—", "0 … 255 (255 unit steps)"),
+        ("Unit current sources", "N", "—", "256", "—", "—", "Each unit = 4 sub-sources"),
+        ("Number of levels", "—", "—", "257", "—", "—", "Code 0 … 256 (256 unit steps)"),
+        ("Input clock", "f_CLK", "", "", "1", "GHz", ""),
         ("Supply voltage (high)", "VDD_1V2", "1.14", "1.20", "1.26", "V", ""),
         ("Supply voltage (low)", "VDD_0V9", "0.85", "0.90", "0.95", "V", ""),
         ("Temperature", "T", "-10", "50 / 85", "110", "°C", "Typ: 50 and 85 (most likely both)"),
-        ("Load resistance", "R_L", "40", "50", "60", "Ω", "Per side; ±20% variation"),
+        ("Load resistance", "R_L", "40", "50", "60", "Ω", "Per side; ±20% variation. Current tracks R_L, so V_FS is constant"),
         ("Load capacitance", "C_L", "", "TBD", "", "fF", "VCO input – to be completed"),
-        ("Full-scale current", "I_FS", "", "10", "", "mA", "Internal spec; V_FS = 2·I_FS·R_L"),
-        ("LSB (unit) current", "I_LSB", "", "39.2", "", "µA", "Internal spec; I_FS / 255"),
     ]
     add_table_with_headers(doc, spec_headers, def_rows)
 
@@ -284,17 +287,15 @@ def generate_spec():
     doc.add_heading("4.2 Results (Performance)", level=2)
     doc.add_paragraph("Performance the DAC must meet, or report, under the conditions in 4.1.")
     spec_rows = [
-        ("Full-scale output (diff)", "V_FS", "", "1000", "", "mVpp", "Differential peak-to-peak (±500 mV)"),
-        ("LSB voltage (diff)", "V_LSB", "", "3.922", "", "mV", "V_FS / 255"),
+        ("Full-scale output (diff)", "V_FS", "950", "1000", "1050", "mVpp", "±5% – self spec. Differential peak-to-peak"),
+        ("LSB voltage (diff)", "V_LSB", "", "3.906", "", "mV", "V_FS / 256"),
         ("Output common-mode", "V_CM", "332.5", "350", "367.5", "mV", "±5% – self spec"),
-        ("Full-scale (gain) error", "GE", "-5", "", "+5", "%", "Self spec"),
         ("DNL", "DNL", "-0.3", "", "+0.3", "LSB", "Including VCO error"),
         ("DNL budget – VCO share", "DNL_VCO", "", "TBD", "", "LSB", "OPEN – part of the ±0.3 LSB, not known yet"),
         ("INL", "INL", "", "TBD", "", "LSB", "Report only"),
         ("Power – 1.2 V supply", "P_1V2", "", "TBD", "", "mW", ""),
         ("Power – 0.9 V supply", "P_0V9", "", "TBD", "", "mW", ""),
-        ("Settling time (1 LSB)", "t_set_LSB", "", "TBD", "", "ps", "To 2τ = 86.5% of final value"),
-        ("Settling time (full scale)", "t_set_FS", "", "TBD", "", "ns", "To 2τ = 86.5% of final value"),
+        ("Settling time (1 LSB)", "t_set_LSB", "", "TBD", "", "ps", "To 2τ = 86.5% of final value. Only ±1 code steps, so no full-scale settling spec"),
         ("Update rate (UP/DN)", "f_update", "", "TBD", "", "GHz",
          "How often the code can change. The DAC is fully thermometric: every UP/DN "
          "pulse turns exactly one unit on or off, so the output always moves by exactly "
@@ -316,9 +317,9 @@ def generate_spec():
     doc.add_heading("4.3 INL and DNL Definitions", level=2)
 
     doc.add_paragraph(
-        "For a fully thermometric differential current-steering DAC with N = 2^B - 1 "
-        "unit elements (B = 8, N = 255). All quantities are differential output "
-        "voltages: V_diff = V_outp - V_outn, V_FS = 1000 mVpp, V_LSB = V_FS / 255 ≈ 3.922 mV."
+        "For a fully thermometric differential current-steering DAC with N = 256 "
+        "unit elements (257 levels, code 0 … 256). All quantities are differential output "
+        "voltages: V_diff = V_outp - V_outn, V_FS = 1000 mVpp, V_LSB = V_FS / 256 ≈ 3.906 mV."
     )
 
     doc.add_heading("4.3.1 DNL (Differential Non-Linearity)", level=3)
@@ -384,7 +385,7 @@ def generate_spec():
     doc.add_paragraph(
         "[Define interface: async pulse (UP/DN), synchronous parallel, or hybrid.\n"
         "Reference system_questions.md Q1–Q9 for open decisions.]\n\n"
-        "CODE[7:0]: 8-bit code (256 codes, 0 … 255)"
+        "CODE[8:0]: code 0 … 256 (257 levels; 9 bits needed for readback)"
     )
 
     doc.add_heading("5.2 Signal List", level=2)
@@ -393,7 +394,7 @@ def generate_spec():
         ("UP", "Input", "1", "Increment DAC code by 1 LSB"),
         ("DN", "Input", "1", "Decrement DAC code by 1 LSB"),
         ("RESET_N", "Input", "1", "Active-low async reset to initial code"),
-        ("CODE[7:0]", "Output/Internal", "8", "Current DAC code (optional readback)"),
+        ("CODE[8:0]", "Output/Internal", "9", "Current DAC code 0 … 256 (optional readback)"),
         ("SAT_HI", "Output", "1", "Saturation flag – code at maximum"),
         ("SAT_LO", "Output", "1", "Saturation flag – code at minimum"),
     ]
@@ -415,7 +416,7 @@ def generate_spec():
 
     doc.add_heading("5.5 Saturation Handling", level=2)
     doc.add_paragraph(
-        "[Define behavior at code 0 and 255: clip, flag, or both.\n"
+        "[Define behavior at code 0 and 256: clip, flag, or both.\n"
         "Reference system_questions.md Q5.]"
     )
 
@@ -435,10 +436,9 @@ def generate_spec():
     doc.add_heading("6.1 Latency Budget", level=2)
     timing_headers = ["Path", "Latency", "Unit", "Notes"]
     timing_rows = [
-        ("UP/DN pulse to output voltage change", "", "ps", "Interface + decoder + switch"),
+        ("UP/DN pulse to output voltage change", "", "ps", "Interface + switch (no decoder)"),
         ("Reset to mid-code settled", "", "ns", ""),
         ("Code-to-code settling (1 LSB)", "", "ps", "To 2τ (86.5%)"),
-        ("Full-scale settling (0 → 255)", "", "ns", "To 2τ (86.5%)"),
     ]
     add_table_with_headers(doc, timing_headers, timing_rows)
 
@@ -492,7 +492,7 @@ def generate_spec():
     test_rows = [
         ("DNL", "Code-by-code ramp", "< ±0.3 LSB", "Including VCO error"),
         ("INL", "Cumulative DNL", "Report only", ""),
-        ("Full-scale voltage", "Codes 0 and 255, measure V_diff", "1000 mVpp diff ±5%", "Self spec"),
+        ("Full-scale voltage", "Codes 0 and 256, measure V_diff", "1000 mVpp diff ±5%", "Self spec"),
         ("Common-mode voltage", "Mid-code, measure V_CM", "350 mV ±5%", "Self spec"),
         ("Power consumption", "Measure supply current", "TBD", ""),
         ("Monotonicity", "Verify no code reversal (DNL > -1)", "Pass/Fail", ""),
@@ -504,7 +504,7 @@ def generate_spec():
     char_rows = [
         ("DNL vs. temperature", "–10°C to 110°C", "Verify matching over temp"),
         ("DNL vs. supply", "1.14–1.26 V and 0.85–0.95 V", "Supply impact on linearity"),
-        ("Settling time", "1 LSB and full-scale step", "Verify timing spec"),
+        ("Settling time", "1 LSB step", "Verify timing spec"),
         ("Noise spectral density", "Mid-code, measure output", "Verify noise budget"),
         ("Glitch energy", "Mid-code transition", "Verify glitch spec"),
     ]
